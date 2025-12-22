@@ -1,16 +1,14 @@
+use plonky2::plonk::config::Hasher;
 use anyhow::Result;
 use plonky2::field::types::Field;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::CircuitConfig;
 use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig};
-
-// 👇 YEH DO NAYI LINES ZAROORI HAIN
 use plonky2::hash::poseidon::PoseidonHash; // Hashing Engine
-use plonky2::plonk::config::Hasher;        // Calculation Tool
 
 fn main() -> Result<()> {
-    // 1. Setup: Engine start kar rahe hain
+    // 1. Setup Engine
     const D: usize = 2;
     type C = PoseidonGoldilocksConfig;
     type F = <C as GenericConfig<D>>::F;
@@ -18,52 +16,60 @@ fn main() -> Result<()> {
     let config = CircuitConfig::standard_recursion_config();
     let mut builder = CircuitBuilder::<F, D>::new(config);
 
-    // --- Circuit Design Shuru ---
+    // ---------------------------------------------------------
+    // 🧠 CIRCUIT LOGIC (The Brain)
+    // ---------------------------------------------------------
 
-    // 2. Private Input (Witness)
-    let pin_target = builder.add_virtual_target();
-    builder.register_public_input(pin_target); 
+    // Step A: Private Input (User's Secret Balance)
+    let balance_target = builder.add_virtual_target();
+    // NOTE: Humne isay 'register_public_input' NAHI kiya, kyunki balance secret rakhna hai! 🤫
 
-    // 3. Hashing Logic (FIXED HERE 🛠️)
-    // Humne explicitly bataya ke "PoseidonHash" use karna hai
-    let computed_hash = builder.hash_n_to_hash_no_pad::<PoseidonHash>(vec![pin_target]);
+    // Step B: Logic 1 - Ownership Check (Hash) 🔐
+    // Circuit balance ka Hash calculate karega
+    let computed_hash = builder.hash_n_to_hash_no_pad::<PoseidonHash>(vec![balance_target]);
 
-    // 4. Public Input (Target Hash)
+    // Public Input: Wo hash jo Bank/Server ke paas saved hai
     let expected_hash_target = builder.add_virtual_hash();
-    
-    // (Sirf demo ke liye pehla hissa public kar rahe hain)
-    builder.register_public_input(expected_hash_target.elements[0]); 
+    builder.register_public_input(expected_hash_target.elements[0]); // Public ko batao ke kis hash se compare karna hai
 
-    // 5. The Constraint
+    // Constraint: Computed Hash == Public Hash
     builder.connect_hashes(computed_hash, expected_hash_target);
 
-    // --- Circuit Build Complete ---
+    // Step C: Logic 2 - Validity Check (Range) 💰
+    // Rule: Balance must be >= 10,000
+    let min_required = builder.constant(F::from_canonical_u64(10000));
+    
+    // Math Trick: Diff = Balance - 10,000
+    let diff = builder.sub(balance_target, min_required);
+
+    // Constraint: Diff must be a small positive number (Non-negative)
+    // Agar balance < 10,000 hua, to diff wrap-around hoke huge number ban jayega aur fail hoga.
+    builder.range_check(diff, 32); // 👈 Yeh Sahi hai (Tight security)
+    //builder.range_check(diff, 64);  👈 Yeh Ghalat hai (Loose security)
+    // ---------------------------------------------------------
+    // 🏗️ BUILD & PROVE
+    // ---------------------------------------------------------
     let data = builder.build::<C>();
-    println!("Circuit design ready hai. Ab proof generate karte hain...");
+    println!("Circuit Ready! (Hash + Range Check combined) 🔗");
 
-    // --- Proof Generation (User Side) ---
+    // --- Scenario: User ke paas 50,000 hain (Valid) ---
+    let my_real_balance = F::from_canonical_u64(50000);
     
-    // Secret PIN '786'
-    let my_secret_pin = F::from_canonical_u64(786);
+    // Server ke liye Hash calculate karte hain (Simulation)
+    let my_balance_hash = PoseidonHash::hash_no_pad(&[my_real_balance]);
 
-    // Hashing Outside Circuit (FIXED HERE 🛠️)
-    // 'HashOut' nahi, balki 'PoseidonHash' use hoga calculate karne ke liye
-    let correct_hash = PoseidonHash::hash_no_pad(&[my_secret_pin]);
-
-    // Ab Witness (Saboot) bharte hain
+    // Witness (Saboot) bharna
     let mut pw = PartialWitness::new();
-    pw.set_target(pin_target, my_secret_pin);       
-    pw.set_hash_target(expected_hash_target, correct_hash); 
+    pw.set_target(balance_target, my_real_balance);        // Secret Balance (50k)
+    pw.set_hash_target(expected_hash_target, my_balance_hash); // Public Hash
 
-    println!("Proof bana raha hoon... (Poseidon Hash calculate ho raha hai)");
+    println!("Generating Proof... (Proving I own >10k without revealing 50k)");
     let proof = data.prove(pw)?;
-    
-    println!("Proof ban gaya! 🎉");
+    println!("Proof Generated! 🎉");
 
-    // --- Verification (Server Side) ---
+    // --- Verify ---
     data.verify(proof)?;
-    
-    println!("Verification Passed! 🟢 System maan gaya ke PIN sahi hai.");
+    println!("Verification Passed! 🟢 User owns the account AND has sufficient funds.");
 
     Ok(())
 }
