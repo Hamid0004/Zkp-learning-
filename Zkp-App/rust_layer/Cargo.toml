@@ -1,0 +1,17 @@
+
+[package]
+name = "rust_layer"
+version = "0.1.0"
+edition = "2021"
+
+# 👇 YEH SABSE ZAROORI HAI: Android ke liye Library format
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# ZKP Tools
+plonky2 = "0.2.2"
+anyhow = "1.0"
+
+# Android Bridge Tool (Kal use hoga, aaj install kar lete hain)
+jni = "0.21.1"
