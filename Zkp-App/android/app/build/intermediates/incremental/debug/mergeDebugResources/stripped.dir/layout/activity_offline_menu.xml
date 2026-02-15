@@ -49,7 +49,6 @@
             android:layout_gravity="center"
             android:padding="16dp"
             android:src="@android:drawable/ic_menu_gallery"
-            app:tint="@color/neon_cyan"
             android:scaleType="fitCenter"/>
 
         <ProgressBar

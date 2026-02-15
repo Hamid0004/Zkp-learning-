@@ -22,7 +22,6 @@ import com.google.zxing.MultiFormatWriter
 import com.google.zxing.WriterException
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.journeyapps.barcodescanner.BarcodeEncoder
-// 🦁 FIX: Explicit import for currentCoroutineContext to prevent build errors
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.*
 import org.json.JSONArray
@@ -78,7 +77,7 @@ class OfflineMenuActivity : AppCompatActivity() {
     private var animationJob: Job? = null
     private var proofGenerationJob: Job? = null
     
-    // 🦁 FIX: Class-level animator to handle lifecycle correctly
+    // Class-level animator to handle lifecycle correctly
     private var breathingAnimator: ObjectAnimator? = null 
 
     private val isTransmitting = AtomicBoolean(false)
@@ -121,7 +120,7 @@ class OfflineMenuActivity : AppCompatActivity() {
         setupClickListeners()
         initializeWakeLock()
         
-        // 🦁 Start breathing animation
+        // Start breathing animation
         startBreathingAnimation()
 
         Log.i(TAG, "OfflineMenuActivity created")
@@ -164,7 +163,6 @@ class OfflineMenuActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // 🦁 FIX: Stop animation to prevent memory leaks
         breathingAnimator?.cancel()
         cleanup()
     }
@@ -293,7 +291,6 @@ class OfflineMenuActivity : AppCompatActivity() {
         indices: Sequence<Int>
     ): Boolean {
         for (index in indices) {
-            // 🦁 FIX: This will now compile correctly thanks to the import
             if (!currentCoroutineContext().isActive || !isTransmitting.get()) return false
             
             try {
@@ -352,24 +349,46 @@ class OfflineMenuActivity : AppCompatActivity() {
         loader.visibility = View.VISIBLE
     }
 
+    // 🦁 2. Jab QR Chal raha ho (Transmitting State) - UPDATED
     private fun updateUIForTransmitting() {
         btnTransmit.text = "⏹ STOP BROADCAST"
+        btnTransmit.setBackgroundColor(Color.parseColor("#D32F2F"))
         btnTransmit.isEnabled = true
-        loader.visibility = View.GONE
-        tvFrameCounter.visibility = View.VISIBLE
         
-        // 🦁 FIX: Pause breathing so it doesn't distract from scanning
+        tvStatus.text = "📡 Broadcasting Identity..."
+        tvStatus.setTextColor(Color.parseColor("#00E676"))
+        
+        tvFrameCounter.visibility = View.VISIBLE
+        loader.visibility = View.GONE
+        
+        // QR Display Setup (Sabse Zaroori Hissa) 👇
+        imgQr.clearColorFilter() // Tint hatao
+        imgQr.imageTintList = null // Pakka hatao
+        imgQr.setBackgroundColor(Color.WHITE) // QR ke peeche White lagao (Scanning ke liye zaroori)
+
+        // Pause breathing so it doesn't distract from scanning
         breathingAnimator?.pause()
     }
 
+    // 🦁 1. Jab App Ruki hui ho (Ready State) - UPDATED
     private fun resetUI() {
         btnTransmit.text = "📡 TRANSMIT"
+        btnTransmit.setBackgroundColor(Color.parseColor("#2E7D32"))
         btnTransmit.isEnabled = true
-        loader.visibility = View.GONE
-        tvFrameCounter.visibility = View.INVISIBLE
-        imgQr.setImageResource(android.R.drawable.ic_menu_gallery)
         
-        // 🦁 FIX: Resume breathing when idle
+        tvStatus.text = "Ready to Transmit"
+        tvStatus.setTextColor(Color.LTGRAY)
+        
+        tvFrameCounter.visibility = View.INVISIBLE
+        loader.visibility = View.GONE
+        
+        // Image Reset
+        imgQr.setImageResource(android.R.drawable.ic_menu_gallery)
+        imgQr.setBackgroundColor(Color.TRANSPARENT) // Background saaf
+        imgQr.setColorFilter(Color.parseColor("#00F0FF")) // Placeholder ko Cyan banao
+        imgQr.imageTintList = null
+
+        // Resume breathing when idle
         if (breathingAnimator != null && breathingAnimator!!.isPaused) {
             breathingAnimator?.resume()
         } else if (breathingAnimator != null && !breathingAnimator!!.isRunning) {
@@ -391,16 +410,11 @@ class OfflineMenuActivity : AppCompatActivity() {
 
     private fun generateSessionId() = "tx_${System.currentTimeMillis()}"
 
-    // ═══════════════════════════════════════════════════════════
-    // 🦁 FIXED: Robust Breathing Animation Function
-    // ═══════════════════════════════════════════════════════════
     private fun startBreathingAnimation() {
-        // Safe check: If animator already exists and is running, don't double start
         if (breathingAnimator != null && breathingAnimator!!.isRunning) return
 
         val cardView = findViewById<View>(R.id.cardQrContainer)
         
-        // 🦁 FIX: Guard clause to prevent crash if View ID is missing in XML
         if (cardView == null) {
             Log.w(TAG, "cardQrContainer not found, skipping animation")
             return

@@ -64,10 +64,6 @@
         "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/info_bg.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_cyber_space.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_cyber_space.xml"
-    },
-    {
         "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_scanner_overlay.xml.flat",
         "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_scanner_overlay.xml"
     },
