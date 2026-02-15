@@ -1,86 +1,94 @@
 [
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_neon_glass_card.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_neon_glass_card.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/layout_activity_main.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_main.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_gradient_header_bg.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/gradient_header_bg.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/xml_nfc_tech_filter.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/xml/nfc_tech_filter.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_cyber_background.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_cyber_background.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_circle_button.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_circle_button.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_rounded_border.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/rounded_border.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_cyber_background.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_cyber_background.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_scanner_overlay.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_scanner_overlay.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_qr_border.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/qr_border.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_ic_flash.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/ic_flash.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_scanner_border.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_scanner_border.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_circle_button.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_circle_button.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/layout_activity_verifier.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_verifier.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/layout_activity_login.xml.flat",
-        "source": "com.example.zkpapp-main-41:/layout/activity_login.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_neon_glass_card.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_neon_glass_card.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/layout_activity_main.xml.flat",
-        "source": "com.example.zkpapp-main-41:/layout/activity_main.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_gradient_header_bg.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/gradient_header_bg.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_qr_border.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/qr_border.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_btn_neon_green.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/btn_neon_green.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_btn_cyber_green.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/btn_cyber_green.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_ic_flash.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/ic_flash.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/xml_nfc_tech_filter.xml.flat",
-        "source": "com.example.zkpapp-main-41:/xml/nfc_tech_filter.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_btn_cyber_green.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/btn_cyber_green.xml"
+    },
+    {
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/layout_activity_login.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_login.xml"
+    },
+    {
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/layout_activity_offline_menu.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_offline_menu.xml"
+    },
+    {
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_neon_card.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_neon_card.xml"
+    },
+    {
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_info_bg.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/info_bg.xml"
     },
     {
         "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_cyber_space.xml.flat",
         "source": "com.example.zkpapp-main-41:/drawable/bg_cyber_space.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_scanner_border.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_scanner_border.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_scanner_overlay.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_scanner_overlay.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_btn_neon_green.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/btn_neon_green.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_ic_shield_lock.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/ic_shield_lock.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_bg_neon_card.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/bg_neon_card.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/layout_activity_camera.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_camera.xml"
     },
     {
         "merged": "com.example.zkpapp-merged_res-39:/layout_activity_offline_menu.xml.flat",
         "source": "com.example.zkpapp-main-41:/layout/activity_offline_menu.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/layout_activity_camera.xml.flat",
-        "source": "com.example.zkpapp-main-41:/layout/activity_camera.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_rounded_border.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/rounded_border.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/layout_activity_verifier.xml.flat",
-        "source": "com.example.zkpapp-main-41:/layout/activity_verifier.xml"
-    },
-    {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_info_bg.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/info_bg.xml"
-    },
-    {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_ic_shield_lock.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/ic_shield_lock.xml"
+        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_bg_cyber_space.xml.flat",
+        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/bg_cyber_space.xml"
     }
 ]

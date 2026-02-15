@@ -32,36 +32,30 @@
         android:id="@+id/cardQrContainer"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="30dp"
-        android:layout_marginBottom="30dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
         android:background="@drawable/bg_neon_glass_card"
-        android:padding="20dp"
+        android:padding="4dp"
         app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-        app:layout_constraintBottom_toTopOf="@id/layoutButtons"
+        app:layout_constraintBottom_toTopOf="@id/tvQrStatus"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <LinearLayout
+        <ImageView
+            android:id="@+id/imgOfflineQr"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:layout_gravity="center"
+            android:padding="16dp"
+            android:src="@android:drawable/ic_menu_gallery"
+            app:tint="@color/neon_cyan"
+            android:scaleType="fitCenter"/>
 
-            <ImageView
-                android:id="@+id/imgOfflineQr"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:src="@android:drawable/ic_menu_gallery"
-                app:tint="@color/neon_cyan"
-                android:scaleType="fitCenter"/>
-
-        </LinearLayout>
-        
         <ProgressBar
             android:id="@+id/loader"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
             android:layout_gravity="center"
             android:visibility="gone"
             android:indeterminateTint="@color/neon_green"/>
@@ -76,6 +70,7 @@
         android:textColor="#AAAAAA"
         android:textSize="14sp"
         android:fontFamily="monospace"
+        android:layout_marginBottom="4dp"
         app:layout_constraintBottom_toTopOf="@id/tvFrameCounter"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
@@ -89,11 +84,10 @@
         android:textSize="16sp"
         android:textStyle="bold"
         android:fontFamily="monospace"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="24dp"
         app:layout_constraintBottom_toTopOf="@id/layoutButtons"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
-
 
     <LinearLayout
         android:id="@+id/layoutButtons"
@@ -101,7 +95,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:weightSum="2"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -117,7 +111,7 @@
             android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:background="@drawable/btn_cyber_green"
-            app:layout_constraintBottom_toBottomOf="parent"/>
+            android:stateListAnimator="@null"/>
 
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnVerifyOffline"
@@ -130,7 +124,9 @@
             android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:background="@drawable/btn_cyber_green"
-            android:backgroundTint="#FF9800"/> 
-            </LinearLayout>
+            android:backgroundTint="#FF9800"
+            android:stateListAnimator="@null"/> 
+
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,12 +1,95 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <gradient
-        android:type="radial"
-        android:gradientRadius="800dp"
-        android:centerX="0.5"
-        android:centerY="0.3"
-        android:startColor="#1A222E"
-        android:centerColor="#0B0D10"
-        android:endColor="#000000" />
-</shape>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="400dp"
+    android:height="800dp"
+    android:viewportWidth="400"
+    android:viewportHeight="800">
+
+    <path android:pathData="M0,0h400v800h-400z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="200"
+                android:centerY="300"
+                android:gradientRadius="550">
+                
+                <item android:offset="0" android:color="#0F1F2E"/>
+                <item android:offset="0.6" android:color="#071018"/>
+                <item android:offset="1" android:color="#000000"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:fillColor="#00FFC8"
+        android:fillAlpha="0.06"
+        android:pathData="
+            M0,100
+            C120,50 280,300 400,250
+            L400,450
+            C280,550 120,350 0,450
+            Z"/>
+
+    <path
+        android:fillColor="#00BFFF"
+        android:fillAlpha="0.05"
+        android:pathData="
+            M0,400
+            C150,350 250,650 400,550
+            L400,800
+            C250,800 150,650 0,800
+            Z"/>
+
+    <path
+        android:fillColor="#9D00FF"
+        android:fillAlpha="0.04"
+        android:pathData="
+            M200,0
+            C300,100 350,300 400,0
+            L400,200
+            C300,400 200,100 200,0
+            Z"/>
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="
+        M50,60 h2 v2 h-2 z
+        M120,100 h1.5 v1.5 h-1.5 z
+        M300,150 h2 v2 h-2 z
+        M40,250 h1.5 v1.5 h-1.5 z
+        M350,320 h2 v2 h-2 z
+        M200,180 h1.5 v1.5 h-1.5 z
+        M100,480 h1.5 v1.5 h-1.5 z
+        M320,520 h2 v2 h-2 z
+        M60,700 h2 v2 h-2 z
+        M360,760 h1.5 v1.5 h-1.5 z
+        M180,300 h1.5 v1.5 h-1.5 z
+        M220,640 h2 v2 h-2 z
+        M200,400 h2 v2 h-2 z  M280,50 h1.5 v1.5 h-1.5 z
+        " />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.25"
+        android:pathData="
+        M10,20 h1 v1 h-1 z
+        M90,150 h1 v1 h-1 z
+        M210,240 h1 v1 h-1 z
+        M310,360 h1 v1 h-1 z
+        M40,390 h1 v1 h-1 z
+        M360,430 h1 v1 h-1 z
+        M150,80 h1 v1 h-1 z
+        M250,720 h1 v1 h-1 z
+        M30,540 h1 v1 h-1 z
+        M390,120 h1 v1 h-1 z
+        M170,670 h1 v1 h-1 z
+        M280,610 h1 v1 h-1 z
+        M130,300 h1 v1 h-1 z
+        M260,450 h1 v1 h-1 z
+        M20,650 h1 v1 h-1 z
+        M380,20 h1 v1 h-1 z
+        " />
+
+</vector>
