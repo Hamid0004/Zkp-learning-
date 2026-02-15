@@ -3,3 +3,7 @@ target/
 *.so
 *.zip
 *.aab
+/android/app/build/
+/target/
+*.dex
+*.class
