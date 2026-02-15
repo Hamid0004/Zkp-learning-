@@ -25,10 +25,12 @@ drawable bg_neon_glass_card
 drawable bg_scanner_border
 drawable bg_scanner_overlay
 drawable btn_cyber_green
+drawable btn_cyber_orange
 drawable btn_neon_green
 drawable gradient_header_bg
 drawable ic_flash
 drawable ic_shield_lock
+drawable ic_zkp_logo
 drawable info_bg
 drawable qr_border
 drawable rounded_border

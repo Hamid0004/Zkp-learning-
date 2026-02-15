@@ -349,10 +349,10 @@ class OfflineMenuActivity : AppCompatActivity() {
         loader.visibility = View.VISIBLE
     }
 
-    // 🦁 2. Jab QR Chal raha ho (Transmitting State) - UPDATED
+    // 🦁 2. TRANSMIT STATE (Show Sharp QR)
     private fun updateUIForTransmitting() {
         btnTransmit.text = "⏹ STOP BROADCAST"
-        btnTransmit.setBackgroundColor(Color.parseColor("#D32F2F"))
+        btnTransmit.setBackgroundColor(Color.parseColor("#D32F2F")) // Red for Stop
         btnTransmit.isEnabled = true
         
         tvStatus.text = "📡 Broadcasting Identity..."
@@ -361,19 +361,27 @@ class OfflineMenuActivity : AppCompatActivity() {
         tvFrameCounter.visibility = View.VISIBLE
         loader.visibility = View.GONE
         
-        // QR Display Setup (Sabse Zaroori Hissa) 👇
-        imgQr.clearColorFilter() // Tint hatao
-        imgQr.imageTintList = null // Pakka hatao
-        imgQr.setBackgroundColor(Color.WHITE) // QR ke peeche White lagao (Scanning ke liye zaroori)
+        // --- LOGIC FOR QR CODE ---
+        imgQr.setPadding(0, 0, 0, 0) // Remove padding so QR fills space
+        imgQr.clearColorFilter() // Remove Neon Glow
+        imgQr.imageTintList = null 
+        imgQr.setBackgroundColor(Color.WHITE) // White background for scanning
 
-        // Pause breathing so it doesn't distract from scanning
+        // 🦁 Stop Animation: Moving target is hard to scan
         breathingAnimator?.pause()
     }
 
-    // 🦁 1. Jab App Ruki hui ho (Ready State) - UPDATED
+    // 🦁 1. IDLE STATE (Show Glowing Shield)
     private fun resetUI() {
         btnTransmit.text = "📡 TRANSMIT"
-        btnTransmit.setBackgroundColor(Color.parseColor("#2E7D32"))
+        
+        // 🦁 Safe Resource Handling
+        // If R.drawable.btn_cyber_green doesn't exist, this falls back to color
+        try {
+            btnTransmit.setBackgroundResource(R.drawable.btn_cyber_green)
+        } catch (e: Exception) {
+            btnTransmit.setBackgroundColor(Color.parseColor("#00E676")) // Cyber Green Fallback
+        }
         btnTransmit.isEnabled = true
         
         tvStatus.text = "Ready to Transmit"
@@ -382,13 +390,24 @@ class OfflineMenuActivity : AppCompatActivity() {
         tvFrameCounter.visibility = View.INVISIBLE
         loader.visibility = View.GONE
         
-        // Image Reset
-        imgQr.setImageResource(android.R.drawable.ic_menu_gallery)
-        imgQr.setBackgroundColor(Color.TRANSPARENT) // Background saaf
-        imgQr.setColorFilter(Color.parseColor("#00F0FF")) // Placeholder ko Cyan banao
+        // --- LOGIC FOR SHIELD ---
+        // 🦁 Using R.drawable.ic_zkp_logo as requested.
+        // If this crashes, rename your logo file to 'ic_zkp_logo.png' in res/drawable
+        try {
+            imgQr.setImageResource(R.drawable.ic_zkp_logo) 
+        } catch (e: Exception) {
+            // Fallback to a standard Android lock icon if your logo is missing
+            imgQr.setImageResource(android.R.drawable.ic_lock_idle_lock) 
+        }
+
+        imgQr.setPadding(40, 40, 40, 40) // Add padding for icon
+        imgQr.setBackgroundColor(Color.TRANSPARENT)
+        
+        // Apply Neon Cyan Glow to the Shield
+        imgQr.setColorFilter(Color.parseColor("#00F0FF")) 
         imgQr.imageTintList = null
 
-        // Resume breathing when idle
+        // 🦁 Resume Animation: Start breathing again when idle
         if (breathingAnimator != null && breathingAnimator!!.isPaused) {
             breathingAnimator?.resume()
         } else if (breathingAnimator != null && !breathingAnimator!!.isRunning) {
