@@ -73,7 +73,7 @@ class OfflineMenuActivity : AppCompatActivity() {
         
         // Transmission Timing - HIGHLY OPTIMIZED for reliable scanning
         // 🦁 400ms is the sweet spot. Too fast = Camera blur = Timeout.
-        private const val FRAME_DELAY_MS = 400L 
+        private const val FRAME_DELAY_MS = 200L 
         private const val ERROR_DISPLAY_DURATION_MS = 4000L
         
         // Performance Limits
