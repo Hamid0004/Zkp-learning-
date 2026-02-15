@@ -1398,8 +1398,6 @@ color common_google_signin_btn_text_light_disabled
 color common_google_signin_btn_text_light_focused
 color common_google_signin_btn_text_light_pressed
 color common_google_signin_btn_tint
-color cyber_bg_dark
-color cyber_bg_light
 color design_bottom_navigation_shadow_color
 color design_box_stroke_color
 color design_dark_default_color_background
@@ -1447,6 +1445,7 @@ color error_color_material_light
 color foreground_material_dark
 color foreground_material_light
 color glass_grey
+color glass_surface
 color highlighted_text_material_dark
 color highlighted_text_material_light
 color m3_appbar_overlay_color
@@ -2101,6 +2100,7 @@ color mtrl_textinput_filled_box_default_background_color
 color mtrl_textinput_focused_box_stroke_color
 color mtrl_textinput_hovered_box_stroke_color
 color neon_cyan
+color neon_glow_cyan
 color neon_green
 color neon_green_dim
 color neon_orange
@@ -2115,6 +2115,7 @@ color primary_text_default_material_dark
 color primary_text_default_material_light
 color primary_text_disabled_material_dark
 color primary_text_disabled_material_light
+color purple_200
 color purple_500
 color purple_700
 color ripple_material_dark
@@ -2123,6 +2124,8 @@ color secondary_text_default_material_dark
 color secondary_text_default_material_light
 color secondary_text_disabled_material_dark
 color secondary_text_disabled_material_light
+color space_dark
+color space_mid
 color switch_thumb_disabled_material_dark
 color switch_thumb_disabled_material_light
 color switch_thumb_material_dark
@@ -2130,6 +2133,7 @@ color switch_thumb_material_light
 color switch_thumb_normal_material_dark
 color switch_thumb_normal_material_light
 color teal_200
+color teal_700
 color tooltip_background_dark
 color tooltip_background_light
 color white
@@ -3022,13 +3026,16 @@ drawable avd_hide_password
 drawable avd_show_password
 drawable bg_circle_button
 drawable bg_cyber_background
+drawable bg_cyber_space
 drawable bg_neon_card
+drawable bg_neon_glass_card
 drawable bg_scanner_border
 drawable bg_scanner_overlay
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
 drawable btn_checkbox_unchecked_to_checked_mtrl_animation
+drawable btn_cyber_green
 drawable btn_neon_green
 drawable btn_radio_off_mtrl
 drawable btn_radio_off_to_on_mtrl_animation
@@ -3271,7 +3278,7 @@ id buttonPanel
 id cache_measures
 id callMeasure
 id cancel_button
-id cardQrDisplay
+id cardQrContainer
 id carryVelocity
 id center
 id centerCrop

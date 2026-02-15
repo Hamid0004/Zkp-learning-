@@ -4,14 +4,14 @@ package com.example.zkpapp.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.cardview.widget.CardView;
+import androidx.appcompat.widget.AppCompatButton;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
@@ -25,13 +25,13 @@ public final class ActivityOfflineMenuBinding implements ViewBinding {
   private final ConstraintLayout rootView;
 
   @NonNull
-  public final Button btnTransmit;
+  public final AppCompatButton btnTransmit;
 
   @NonNull
-  public final Button btnVerifyOffline;
+  public final AppCompatButton btnVerifyOffline;
 
   @NonNull
-  public final CardView cardQrDisplay;
+  public final FrameLayout cardQrContainer;
 
   @NonNull
   public final ImageView imgOfflineQr;
@@ -55,15 +55,15 @@ public final class ActivityOfflineMenuBinding implements ViewBinding {
   public final TextView tvTitle;
 
   private ActivityOfflineMenuBinding(@NonNull ConstraintLayout rootView,
-      @NonNull Button btnTransmit, @NonNull Button btnVerifyOffline,
-      @NonNull CardView cardQrDisplay, @NonNull ImageView imgOfflineQr,
+      @NonNull AppCompatButton btnTransmit, @NonNull AppCompatButton btnVerifyOffline,
+      @NonNull FrameLayout cardQrContainer, @NonNull ImageView imgOfflineQr,
       @NonNull LinearLayout layoutButtons, @NonNull ProgressBar loader,
       @NonNull TextView tvFrameCounter, @NonNull TextView tvQrStatus, @NonNull TextView tvSubtitle,
       @NonNull TextView tvTitle) {
     this.rootView = rootView;
     this.btnTransmit = btnTransmit;
     this.btnVerifyOffline = btnVerifyOffline;
-    this.cardQrDisplay = cardQrDisplay;
+    this.cardQrContainer = cardQrContainer;
     this.imgOfflineQr = imgOfflineQr;
     this.layoutButtons = layoutButtons;
     this.loader = loader;
@@ -101,20 +101,20 @@ public final class ActivityOfflineMenuBinding implements ViewBinding {
     int id;
     missingId: {
       id = R.id.btnTransmit;
-      Button btnTransmit = ViewBindings.findChildViewById(rootView, id);
+      AppCompatButton btnTransmit = ViewBindings.findChildViewById(rootView, id);
       if (btnTransmit == null) {
         break missingId;
       }
 
       id = R.id.btnVerifyOffline;
-      Button btnVerifyOffline = ViewBindings.findChildViewById(rootView, id);
+      AppCompatButton btnVerifyOffline = ViewBindings.findChildViewById(rootView, id);
       if (btnVerifyOffline == null) {
         break missingId;
       }
 
-      id = R.id.cardQrDisplay;
-      CardView cardQrDisplay = ViewBindings.findChildViewById(rootView, id);
-      if (cardQrDisplay == null) {
+      id = R.id.cardQrContainer;
+      FrameLayout cardQrContainer = ViewBindings.findChildViewById(rootView, id);
+      if (cardQrContainer == null) {
         break missingId;
       }
 
@@ -161,7 +161,7 @@ public final class ActivityOfflineMenuBinding implements ViewBinding {
       }
 
       return new ActivityOfflineMenuBinding((ConstraintLayout) rootView, btnTransmit,
-          btnVerifyOffline, cardQrDisplay, imgOfflineQr, layoutButtons, loader, tvFrameCounter,
+          btnVerifyOffline, cardQrContainer, imgOfflineQr, layoutButtons, loader, tvFrameCounter,
           tvQrStatus, tvSubtitle, tvTitle);
     }
     String missingId = rootView.getResources().getResourceName(id);

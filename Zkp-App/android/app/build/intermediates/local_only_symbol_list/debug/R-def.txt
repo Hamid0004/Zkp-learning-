@@ -1,23 +1,30 @@
 R_DEF: Internal format may change without notice
 local
 color black
-color cyber_bg_dark
-color cyber_bg_light
 color glass_grey
+color glass_surface
 color neon_cyan
+color neon_glow_cyan
 color neon_green
 color neon_green_dim
 color neon_orange
 color neon_orange_dim
+color purple_200
 color purple_500
 color purple_700
+color space_dark
+color space_mid
 color teal_200
+color teal_700
 color white
 drawable bg_circle_button
 drawable bg_cyber_background
+drawable bg_cyber_space
 drawable bg_neon_card
+drawable bg_neon_glass_card
 drawable bg_scanner_border
 drawable bg_scanner_overlay
+drawable btn_cyber_green
 drawable btn_neon_green
 drawable gradient_header_bg
 drawable ic_flash
@@ -33,7 +40,7 @@ id btnScanQrLogin
 id btnTestProof
 id btnTransmit
 id btnVerifyOffline
-id cardQrDisplay
+id cardQrContainer
 id imgDynamicQr
 id imgOfflineQr
 id layoutButtons

@@ -23,8 +23,8 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.CRC32
-import kotlin.system.measureTimeMillis
 
 /**
  * VerifierActivity - Production-Grade ZK Proof Validator 🕵️‍♂️
@@ -40,7 +40,7 @@ import kotlin.system.measureTimeMillis
  * ✅ Performance Monitoring & Metrics
  *
  * @author Production Team
- * @version 2.0.0
+ * @version 2.0.2
  */
 class VerifierActivity : AppCompatActivity() {
 
@@ -61,14 +61,18 @@ class VerifierActivity : AppCompatActivity() {
 
         // Security Limits
         private const val MAX_CHUNK_SIZE = 2048 // Max bytes per chunk
-        private const val MAX_TOTAL_CHUNKS = 50 // Prevent memory exhaustion
-        private const val MAX_PROOF_SIZE = 100_000 // Max assembled proof size
+        // 🦁 FIX: Increased to 3000 to match Sender
+        private const val MAX_TOTAL_CHUNKS = 3000 
+        private const val MAX_PROOF_SIZE = 5_000_000 // 5MB max proof size
         
-        // Timeouts
+        // Timeouts - INCREASED for better scanning
         private const val REQUEST_CAMERA_PERMISSION = 1001
-        private const val TIMEOUT_DURATION_MS = 8000L // 8 seconds inactivity
-        private const val VERIFICATION_TIMEOUT_MS = 15000L // 15 seconds for Rust
+        private const val TIMEOUT_DURATION_MS = 60000L // 60 seconds (1 minute)
+        private const val VERIFICATION_TIMEOUT_MS = 30000L // 30 seconds for Rust
         private const val WATCHDOG_INTERVAL_MS = 1000L
+        
+        // Scanning optimization
+        private const val MIN_SCAN_INTERVAL_MS = 50L // Minimum time between scans
         
         // UI Update throttling
         private const val MIN_UI_UPDATE_INTERVAL_MS = 100L
@@ -93,13 +97,15 @@ class VerifierActivity : AppCompatActivity() {
     // ═══════════════════════════════════════════════════════════
     private val receivedChunks = ConcurrentHashMap<Int, ChunkData>()
     private val totalChunksExpected = AtomicInteger(-1)
-    private val lastScannedTime = AtomicInteger(0)
+    // 🦁 FIX: AtomicLong to prevent overflow errors
+    private val lastScannedTime = AtomicLong(0L) 
     private val isProcessing = AtomicBoolean(false)
     private val isVerifying = AtomicBoolean(false)
     
     // Session Management
     private var currentSessionId: String? = null
     private var lastUiUpdateTime = 0L
+    private var lastScanTime = 0L 
     
     // Coroutine Management
     private val verificationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -269,10 +275,17 @@ class VerifierActivity : AppCompatActivity() {
                 if (isProcessing.get()) return
                 if (result?.text.isNullOrBlank()) return
                 
+                // Throttle scanning to prevent overwhelming the processor
+                val now = System.currentTimeMillis()
+                if (now - lastScanTime < MIN_SCAN_INTERVAL_MS) {
+                    return // Skip this scan, too fast
+                }
+                lastScanTime = now
+                
                 val qrData = result!!.text
                 
-                // Update scan time
-                lastScannedTime.set(System.currentTimeMillis().toInt())
+                // Update scan time (AtomicLong)
+                lastScannedTime.set(now)
                 
                 // Process QR data
                 processQrData(qrData)
@@ -336,17 +349,43 @@ class VerifierActivity : AppCompatActivity() {
                 return
             }
 
-            // Checksum validation
-            val checksumValid = if (parts.size >= 3) {
-                validateChecksum(payload, parts[2])
-            } else {
-                Log.w(TAG, "No checksum provided for chunk $currentIndex")
-                true // Allow chunks without checksum (backwards compatibility)
-            }
+            // Determine chunk format and validate
+            val isSecureFormat = parts.size >= 4
+            var checksumValid = true
+            var signatureValid = true
             
-            if (!checksumValid) {
-                showError("⚠️ Checksum Failed on Chunk $currentIndex", ErrorCode.CHECKSUM_MISMATCH)
-                return
+            if (isSecureFormat) {
+                // Secure format: "index/total|payload|crc32|signature"
+                Log.v(TAG, "🔒 Chunk $currentIndex: Secure format detected")
+                
+                // Validate CRC32
+                val crc32Str = parts[2]
+                checksumValid = validateChecksum(payload, crc32Str)
+                
+                if (!checksumValid) {
+                    Log.e(TAG, "❌ CRC32 validation failed for chunk $currentIndex")
+                    showError("⚠️ Chunk Integrity Failed (CRC32)", ErrorCode.CHECKSUM_MISMATCH)
+                    return
+                }
+                
+                // Validate SHA256 signature
+                val providedSig = parts[3]
+                val calculatedSig = calculateChunkSignature(currentIndex, total, payload, crc32Str)
+                signatureValid = providedSig == calculatedSig
+                
+                if (!signatureValid) {
+                    Log.e(TAG, "❌ SHA256 signature validation failed for chunk $currentIndex")
+                    showError("⚠️ Chunk Tampering Detected", ErrorCode.CHECKSUM_MISMATCH)
+                    return
+                }
+                
+            } else if (parts.size >= 3) {
+                // Legacy format with checksum: "index/total|payload|checksum"
+                checksumValid = validateChecksum(payload, parts[2])
+                if (!checksumValid) {
+                    showError("⚠️ Checksum Failed on Chunk $currentIndex", ErrorCode.CHECKSUM_MISMATCH)
+                    return
+                }
             }
 
             // Session management
@@ -364,7 +403,12 @@ class VerifierActivity : AppCompatActivity() {
             }
 
             // Store chunk (with deduplication)
-            storeChunk(currentIndex, payload, parts.getOrNull(2)?.toLongOrNull() ?: 0L)
+            val checksum = if (parts.size >= 3) {
+                parts[2].toLongOrNull() ?: 0L
+            } else {
+                0L
+            }
+            storeChunk(currentIndex, payload, checksum)
             
             // Check completion
             if (receivedChunks.size == total) {
@@ -415,6 +459,9 @@ class VerifierActivity : AppCompatActivity() {
         currentSessionId = generateSessionId()
         scanStartTime = System.currentTimeMillis()
         
+        // 🦁 FIX: Correctly set AtomicLong (was causing crash with .toInt() before)
+        lastScannedTime.set(System.currentTimeMillis())
+        
         Log.i(TAG, "Session initialized: $currentSessionId, total chunks: $total")
     }
 
@@ -426,17 +473,13 @@ class VerifierActivity : AppCompatActivity() {
             val chunkData = ChunkData(index, payload, checksum)
             receivedChunks[index] = chunkData
             
-            Log.d(TAG, "Chunk stored: $index/${totalChunksExpected.get()}")
-            
             // Throttled UI update
             updateProgressUI()
-        } else {
-            Log.d(TAG, "Duplicate chunk ignored: $index")
-        }
+        } 
     }
 
     /**
-     * Updates progress UI with throttling
+     * Updates progress UI with throttling and detailed stats
      */
     private fun updateProgressUI() {
         val now = System.currentTimeMillis()
@@ -447,10 +490,11 @@ class VerifierActivity : AppCompatActivity() {
         
         val progress = receivedChunks.size
         val total = totalChunksExpected.get()
+        val percentage = if (total > 0) (progress * 100) / total else 0
         
         runOnUiThread {
             progressBar.progress = progress
-            statusText.text = "📥 Loading: $progress/$total"
+            statusText.text = "📥 Loading: $progress/$total ($percentage%)"
             statusText.setBackgroundColor(Color.parseColor("#424242"))
         }
     }
@@ -581,8 +625,6 @@ class VerifierActivity : AppCompatActivity() {
             // Additional integrity check with SHA256
             val digest = MessageDigest.getInstance("SHA-256")
             val hash = digest.digest(proof.toByteArray())
-            
-            // Validate hash is not all zeros (basic sanity check)
             hash.any { it != 0.toByte() }
         } catch (e: Exception) {
             Log.e(TAG, "Error validating assembled proof", e)
@@ -600,7 +642,7 @@ class VerifierActivity : AppCompatActivity() {
             is VerificationResult.Success -> {
                 Log.i(TAG, "✅ Verification SUCCESS (${result.verificationTimeMs}ms)")
                 
-                if (result.report.contains("Verified", ignoreCase = true)) {
+                if (result.report.contains("Verified", ignoreCase = true) || result.report.contains("✅")) {
                     updateStatus(
                         "✅ ${result.report}\n⏱️ Total: ${totalTime}ms",
                         Color.parseColor("#2E7D32")
@@ -664,7 +706,7 @@ class VerifierActivity : AppCompatActivity() {
         isVerifying.set(false)
         receivedChunks.clear()
         totalChunksExpected.set(-1)
-        lastScannedTime.set(System.currentTimeMillis().toInt())
+        lastScannedTime.set(System.currentTimeMillis())
         currentSessionId = null
         lastUiUpdateTime = 0L
 
@@ -725,6 +767,26 @@ class VerifierActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "Checksum validation error", e)
             false
+        }
+    }
+
+    /**
+     * 🦁 FIX: Added missing function to calculate signature
+     * Ensures compatibility with Secure Format without crashing
+     */
+    private fun calculateChunkSignature(
+        index: Int,
+        total: Int,
+        payload: String,
+        crc32Str: String
+    ): String {
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val signatureInput = "$index/$total|$payload|$crc32Str"
+            val hash = digest.digest(signatureInput.toByteArray(Charsets.UTF_8))
+            hash.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            ""
         }
     }
 

@@ -2,52 +2,50 @@
 name = "zkp_mobile"
 version = "0.1.0"
 edition = "2021"
-# 🦁 Force modern dependency resolution
+# 🦁 Force modern dependency resolution for Android
 resolver = "2"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-# 🌉 Android JNI Bridge (Default features disabled for smaller size)
+# 🌉 Android JNI Bridge
 jni = { version = "0.21.1", default-features = false }
 
-# 🧠 ZKP Engine (Plonky2) - Core Math logic
+# 🧠 ZKP Engine (Plonky2)
 plonky2 = "0.2.2"
 plonky2_field = "0.2.2"
 
-# 📦 Serialization (Essential for data passing)
+# 📦 Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
 bincode = "1.3"
 base64 = "0.21"
 
-# 🔐 Passport & RSA Security
-hex = "0.4"
-sha2 = "0.10"
+# 🔐 Cryptography & Security (New Dependencies Added ✅)
+sha2 = "0.10"          # SHA256 hashing for signatures
+rand = "0.8"           # Secure random number generation
+hex = "0.4"            # Hex string encoding
+
+# 🛂 Passport Security (Optional but kept if needed)
 rsa = { version = "0.9", features = ["sha2", "pem"] }
-rand = "0.8"
 
 # 🦁 CRITICAL FIXES: Dependency Pinning for Android NDK
-# In versions ko change mat karna, yeh NDK errors rokte hain
-crc32fast = "=1.3.2" 
+# In versions ko change mat karna, yeh NDK build errors rokte hain
+crc32fast = "=1.3.2"   # Fast CRC32 (Pinned for NDK stability)
 base64ct = "=1.6.0"
 rayon = "=1.10.0"
 
-# 📝 Logging (Debugging for Android Logcat)
+# 📝 Logging
 log = "0.4"
 android_logger = "0.13"
 
 [profile.release]
-opt-level = 3           # Max speed for Plonky2 math
-lto = "fat"             # 🦁 Full Link Time Optimization (Benchmarks show 15% boost)
-codegen-units = 1       # Slower build, but faster runtime performance
-strip = false           # 🛑 DO NOT STRIP: Keeps symbols for debugging (remove for production Store release)
+opt-level = 3           # Max speed for math
+lto = "fat"             # Full Link Time Optimization
+codegen-units = 1       # Better optimization
+panic = "unwind"        # 🦁 IMPORTANT: Must be 'unwind' for catch_unwind to work
+strip = false           # Keep symbols for debugging
 debug = true            # Essential for crash reports
-overflow-checks = true  # Extra safety for ZKP math
-
-# 🦁 LOGIC SAVER FIX:
-# "abort" hataya kyunki hum code me 'catch_unwind' use kar rahe hain.
-# Agar 'abort' rakha toh app crash hogi, error return nahi hoga.
-panic = "unwind"
+overflow-checks = true  # Safety for crypto math

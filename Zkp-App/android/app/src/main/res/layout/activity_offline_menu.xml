@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
+    android:background="@drawable/bg_cyber_space" 
     android:padding="24dp">
 
     <TextView
@@ -28,15 +28,15 @@
         app:layout_constraintTop_toBottomOf="@id/tvTitle"
         app:layout_constraintStart_toStartOf="parent"/>
 
-    <androidx.cardview.widget.CardView
-        android:id="@+id/cardQrDisplay"
-        android:layout_width="match_parent"
+    <FrameLayout
+        android:id="@+id/cardQrContainer"
+        android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="30dp"
         android:layout_marginBottom="30dp"
-        app:cardBackgroundColor="#1E1E1E"
-        app:cardCornerRadius="24dp"
-        app:cardElevation="8dp"
+        android:background="@drawable/bg_neon_glass_card"
+        android:padding="20dp"
+        app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
         app:layout_constraintBottom_toTopOf="@id/layoutButtons"
         app:layout_constraintStart_toStartOf="parent"
@@ -46,49 +46,54 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/tvQrStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Ready to Transmit"
-                android:textColor="#AAAAAA"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="10dp"/>
+            android:orientation="vertical">
 
             <ImageView
                 android:id="@+id/imgOfflineQr"
-                android:layout_width="260dp"
-                android:layout_height="260dp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
                 android:src="@android:drawable/ic_menu_gallery"
-                app:tint="#333333"
+                app:tint="@color/neon_cyan"
                 android:scaleType="fitCenter"/>
 
-            <TextView
-                android:id="@+id/tvFrameCounter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="-- / --"
-                android:textColor="#00E676"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:fontFamily="monospace"
-                android:layout_marginTop="10dp"
-                android:visibility="invisible"/>
-            
-            <ProgressBar
-                android:id="@+id/loader"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginTop="10dp"
-                android:visibility="gone"
-                android:indeterminateTint="#00E676"/>
-
         </LinearLayout>
-    </androidx.cardview.widget.CardView>
+        
+        <ProgressBar
+            android:id="@+id/loader"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:indeterminateTint="@color/neon_green"/>
+
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvQrStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ready to Transmit"
+        android:textColor="#AAAAAA"
+        android:textSize="14sp"
+        android:fontFamily="monospace"
+        app:layout_constraintBottom_toTopOf="@id/tvFrameCounter"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <TextView
+        android:id="@+id/tvFrameCounter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="-- / --"
+        android:textColor="#00E676"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="10dp"
+        app:layout_constraintBottom_toTopOf="@id/layoutButtons"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
 
     <LinearLayout
         android:id="@+id/layoutButtons"
@@ -101,32 +106,31 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <Button
+        <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnTransmit"
             android:layout_width="0dp"
-            android:layout_height="64dp"
+            android:layout_height="60dp"
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
             android:text="📡 TRANSMIT"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:backgroundTint="#2E7D32"
             android:textColor="#FFFFFF"
-            app:cornerRadius="16dp"/>
+            android:background="@drawable/btn_cyber_green"
+            app:layout_constraintBottom_toBottomOf="parent"/>
 
-        <Button
+        <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btnVerifyOffline"
             android:layout_width="0dp"
-            android:layout_height="64dp"
+            android:layout_height="60dp"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
             android:text="🔍 VERIFY"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:backgroundTint="#FF9800"
             android:textColor="#FFFFFF"
-            app:cornerRadius="16dp"/>
-
-    </LinearLayout>
+            android:background="@drawable/btn_cyber_green"
+            android:backgroundTint="#FF9800"/> 
+            </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

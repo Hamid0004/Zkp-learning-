@@ -1,5 +1,6 @@
 package com.example.zkpapp
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * 3. Random Pass: Shuffled (Statistical redundancy)
  *
  * @author Production Team
- * @version 2.0.1
+ * @version 2.0.2
  */
 class OfflineMenuActivity : AppCompatActivity() {
 
@@ -70,12 +71,14 @@ class OfflineMenuActivity : AppCompatActivity() {
         private const val QR_SIZE = 800
         private const val QR_MARGIN = 2
         
-        // Transmission Timing
-        private const val FRAME_DELAY_MS = 100L // Optimized for fountain strategy
+        // Transmission Timing - HIGHLY OPTIMIZED for reliable scanning
+        // 🦁 400ms is the sweet spot. Too fast = Camera blur = Timeout.
+        private const val FRAME_DELAY_MS = 400L 
         private const val ERROR_DISPLAY_DURATION_MS = 4000L
         
         // Performance Limits
-        private const val MAX_CHUNKS = 500 // Prevent memory exhaustion
+        // 🦁 FIX: Increased to 3000 to match Verifier.
+        private const val MAX_CHUNKS = 3000 
         private const val MAX_CHUNK_SIZE = 2048 // Max data per QR
         private const val PROOF_GENERATION_TIMEOUT_MS = 30000L // 30 seconds
         
@@ -151,7 +154,7 @@ class OfflineMenuActivity : AppCompatActivity() {
     ) {
         override fun toString(): String {
             return "Stats(frames: $framesTransmitted/$totalFrames, cycles: $cyclesCompleted, " +
-                    "fps: ${"%.1f".format(framesPerSecond)}, duration: ${durationMs}ms)"
+                   "fps: ${"%.1f".format(framesPerSecond)}, duration: ${durationMs}ms)"
         }
     }
     
@@ -215,12 +218,17 @@ class OfflineMenuActivity : AppCompatActivity() {
 
     private fun initializeWakeLock() {
         try {
-            val powerManager = getSystemService(POWER_SERVICE) as android.os.PowerManager
-            wakeLock = powerManager.newWakeLock(
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
-                "$TAG:TransmissionWakeLock"
-            )
-            Log.d(TAG, "Wake lock initialized")
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+            powerManager?.let {
+                wakeLock = it.newWakeLock(
+                    android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                    "$TAG::TransmissionWakeLock"
+                )
+                wakeLock?.setReferenceCounted(false)
+                Log.d(TAG, "Wake lock initialized")
+            } ?: run {
+                Log.e(TAG, "PowerManager not available")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize wake lock", e)
         }
@@ -337,16 +345,41 @@ class OfflineMenuActivity : AppCompatActivity() {
                 return null
             }
             
-            // Validate chunk sizes
+            // Validate chunk sizes and format
+            var secureChunks = 0
+            var legacyChunks = 0
+            
             for (i in 0 until jsonArray.length()) {
-                val chunk = jsonArray.getString(i)
-                if (chunk.length > MAX_CHUNK_SIZE) {
-                    Log.e(TAG, "Chunk $i exceeds size limit: ${chunk.length} > $MAX_CHUNK_SIZE")
+                val chunkStr = jsonArray.getString(i)
+                
+                // Check total size
+                if (chunkStr.length > MAX_CHUNK_SIZE * 2) {
+                    Log.e(TAG, "Chunk $i exceeds size limit: ${chunkStr.length} > ${MAX_CHUNK_SIZE * 2}")
                     return null
+                }
+                
+                // Detect format
+                // Secure: "index/total|payload|crc32|signature"
+                // Legacy: "index/total|payload"
+                val parts = chunkStr.split("|")
+                when (parts.size) {
+                    4 -> {
+                        secureChunks++
+                        Log.v(TAG, "Chunk $i: Secure format ✓")
+                    }
+                    2 -> {
+                        legacyChunks++
+                        Log.v(TAG, "Chunk $i: Legacy format")
+                    }
+                    else -> {
+                        Log.w(TAG, "Chunk $i: Unknown format (${parts.size} parts)")
+                    }
                 }
             }
             
-            Log.i(TAG, "Chunks validated: ${jsonArray.length()} chunks")
+            Log.i(TAG, "Chunks validated: ${jsonArray.length()} total " +
+                      "(secure: $secureChunks, legacy: $legacyChunks)")
+            
             jsonArray
             
         } catch (e: JSONException) {
@@ -461,7 +494,7 @@ class OfflineMenuActivity : AppCompatActivity() {
                 }
 
                 // Main transmission loop
-                while (isActive && isTransmitting.get()) {
+                while (currentCoroutineContext().isActive && isTransmitting.get()) {
                     currentCycleNumber++
                     
                     Log.d(TAG, "Cycle $currentCycleNumber started")
@@ -524,8 +557,7 @@ class OfflineMenuActivity : AppCompatActivity() {
         
         withContext(Dispatchers.IO) {
             for (i in 0 until dataChunks.length()) {
-                // FIXED: Use isActive from the CoroutineScope provided by withContext
-                if (!isActive || !isTransmitting.get()) break
+                if (!currentCoroutineContext().isActive || !isTransmitting.get()) break
                 
                 try {
                     val bitmap = generateQRBitmap(
@@ -557,7 +589,7 @@ class OfflineMenuActivity : AppCompatActivity() {
         val totalFrames = dataChunks.length()
         
         for (index in indices) {
-            // FIXED: Use currentCoroutineContext().isActive for safe checking inside suspend fun
+            // 🦁 FIX: Use currentCoroutineContext() for correct compilation
             if (!currentCoroutineContext().isActive || !isTransmitting.get()) {
                 return false
             }
