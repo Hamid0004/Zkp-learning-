@@ -2,9 +2,7 @@ package com.example.zkpapp.auth
 
 import android.content.Context
 import android.util.Log
-import com.example.zkpapp.IdentityStorage
-import com.example.zkpapp.NetworkUtils
-import com.example.zkpapp.ZkAuth
+import com.example.zkpapp.* // Import ZkAuth, ZkAuthResult, ProofMetadata, etc.
 import com.example.zkpapp.models.ProofRequest
 import com.example.zkpapp.network.RelayApi
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +15,7 @@ import java.util.concurrent.TimeUnit
 
 object ZkAuthManager {
 
+    // 🦁 NOTE: Ensure this URL is live (Github Codespaces URL changes often)
     private const val BASE_URL =
         "https://crispy-dollop-97xj7vjgx4ph9pgg-3000.app.github.dev/"
 
@@ -43,7 +42,8 @@ object ZkAuthManager {
         context: Context,
         sessionId: String,
         onStatus: (String) -> Unit,
-        onSuccess: () -> Unit,
+        // 🦁 CHANGE 1: onSuccess ab Metadata return karega (Benchmarks ke liye)
+        onSuccess: (ProofMetadata) -> Unit, 
         onError: (String) -> Unit,
     ) {
         if (running) return
@@ -58,50 +58,54 @@ object ZkAuthManager {
 
             onStatus("🦁 Fetching Passport Identity...")
 
-            // ⏱️ DAY 84: START BENCHMARK TIMER
-            val startTime = System.currentTimeMillis()
-            var proofDuration = 0L
-
-            // 2. Generate Proof with REAL Data
-            val proof = withContext(Dispatchers.Default) {
-
-                // Check Storage First
+            // 2. Data Retrieval (Secure Storage)
+            val secret = withContext(Dispatchers.IO) {
                 if (!IdentityStorage.hasIdentity()) {
                     throw Exception("⚠️ No Passport Data! Please Scan NFC First.")
                 }
+                IdentityStorage.getSecret()
+            }
+            val domain = IdentityStorage.getDomain()
 
-                val realSecret = IdentityStorage.getSecret()
-                val realDomain = IdentityStorage.getDomain()
+            onStatus("⚙️ Generating ZK Proof...")
 
-                // Use Real Data for Zero Knowledge Proof
-                val result = ZkAuth.safeGenerateNullifier(
-                    secret = realSecret,
-                    domain = realDomain,
-                    challenge = sessionId
-                )
+            // 3. 🦁 NEW: Use modern 'authenticate' function (Async & Type-Safe)
+            // Benchmarking ab Rust ke andar ho raha hai, humein timer ki zaroorat nahi.
+            val authResult = ZkAuth.authenticate(
+                secret = secret,
+                domain = domain,
+                challenge = sessionId
+            )
+
+            // 4. Handle Result
+            when (authResult) {
+                is ZkAuthResult.Error -> {
+                    // Logic Flow intact: Error hua to report karo aur ruk jao
+                    Log.e("ZkAuth", "Proof Gen Failed: ${authResult.code}")
+                    onError("❌ Proof Error: ${authResult.message}")
+                    return 
+                }
                 
-                // Calculate Time immediately after proof generation
-                val endTime = System.currentTimeMillis()
-                proofDuration = endTime - startTime
-                
-                return@withContext result
+                is ZkAuthResult.Success -> {
+                    val proofData = authResult.result
+                    val meta = proofData.metadata
+
+                    // 🦁 UX: Show Benchmark immediately
+                    onStatus("⚡ Proof in ${meta.generation_time_ms}ms\n☁️ Uploading...")
+
+                    // 5. Upload to Server
+                    val response = withContext(Dispatchers.IO) {
+                        api.uploadProof(ProofRequest(sessionId, proofData.proof))
+                    }
+
+                    if (response.isSuccessful) {
+                        // 🦁 Pass Metadata to UI for Display
+                        onSuccess(meta) 
+                    } else {
+                        onError(mapError(response.code()))
+                    }
+                }
             }
-
-            if (proof.startsWith("Error") || proof.startsWith("🔥")) {
-                onError(proof)
-                return
-            }
-
-            // 🦁 DISPLAY SPEED TO USER
-            onStatus("⚡ Proof Generated in ${proofDuration}ms\n☁️ Verifying with Server...")
-
-            // 3. Upload to Server
-            val response = withContext(Dispatchers.IO) {
-                api.uploadProof(ProofRequest(sessionId, proof))
-            }
-
-            if (response.isSuccessful) onSuccess()
-            else onError(mapError(response.code()))
 
         } catch (e: Exception) {
             Log.e("ZkAuthManager", "Login failed", e)
@@ -113,7 +117,7 @@ object ZkAuthManager {
 
     private fun mapError(code: Int) = when (code) {
         401 -> "❌ Server Private"
-        404 -> "❌ Session Expired"
+        404 -> "❌ Session Expired (Try Refreshing Website)"
         502 -> "❌ Invalid QR"
         else -> "❌ Server Error ($code)"
     }

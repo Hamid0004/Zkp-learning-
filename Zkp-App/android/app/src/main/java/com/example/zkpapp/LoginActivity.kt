@@ -1,10 +1,13 @@
 package com.example.zkpapp
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -26,8 +29,6 @@ class LoginActivity : AppCompatActivity() {
             }
         }
     }
-
-    external fun stringFromRust(): String
 
     private lateinit var statusText: TextView
     private var qrCardView: View? = null
@@ -109,31 +110,53 @@ class LoginActivity : AppCompatActivity() {
                     statusText.text = msg
                 },
 
-                onSuccess = {
-                    statusText.text = "✅ Login Approved!"
-                    statusText.setTextColor(Color.parseColor("#2E7D32"))
+                // 🦁 CHANGE 1: Receive Metadata Here
+                onSuccess = { meta ->
+                    
+                    // 1. Success Haptic Feedback
+                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= 26) {
+                        vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        vibrator.vibrate(150)
+                    }
 
-                    Toast.makeText(
-                        this@LoginActivity,
-                        "Web Login Successful!",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    // 2. Display Benchmark Report
+                    val benchmarkReport = """
+                        ✅ LOGIN APPROVED!
+                        
+                        ⏱️ Time: ${meta.generation_time_ms} ms
+                        📦 Size: ${meta.proof_size_bytes} bytes
+                        ⚙️ Gates: ${meta.num_gates}
+                        🔑 ID: #${meta.proof_id}
+                        
+                        (Auto-closing in 4s...)
+                    """.trimIndent()
 
+                    statusText.text = benchmarkReport
+                    statusText.setTextColor(Color.parseColor("#4CAF50")) // Green
+                    statusText.textSize = 18f 
+
+                    Toast.makeText(this@LoginActivity, "Login Successful!", Toast.LENGTH_SHORT).show()
+
+                    // 3. Hold screen for 4 seconds so you can read it
                     Handler(Looper.getMainLooper()).postDelayed({
                         finish()
-                    }, 1500)
+                    }, 4000)
                 },
 
-                // ✅ UPDATED ERROR HANDLING (No Auto Close)
+                // 4. Error Handling
                 onError = { error ->
-                    statusText.text = "❌ $error\n\nTap to retry"
+                    statusText.text = "$error\n\nTap to retry"
                     statusText.setTextColor(Color.RED)
 
-                    Toast.makeText(
-                        this@LoginActivity,
-                        error,
-                        Toast.LENGTH_LONG
-                    ).show()
+                    // Error ke liye bhi thodi vibration
+                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= 26) {
+                         vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+                    }
+
+                    Toast.makeText(this@LoginActivity, error, Toast.LENGTH_LONG).show()
 
                     // Retry on tap
                     statusText.setOnClickListener {
