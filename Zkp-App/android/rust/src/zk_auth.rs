@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use android_logger::Config;
-use log::{LevelFilter, info, error}; // 🦁 Removed unused 'warn'
+use log::{LevelFilter, info, error};
 
 use plonky2::field::types::Field;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
@@ -34,7 +34,6 @@ const CIRCUIT_VERSION: &str = "1.0.0";
 static PROOF_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 // --- STRUCTS ---
-// 🦁 CRITICAL STRUCT: Holds Data AND Targets
 struct AuthCircuit {
     data: CircuitData<F, C, D>,
     t_secret: Target,
@@ -44,7 +43,6 @@ struct AuthCircuit {
     circuit_hash: String,
 }
 
-// 🦁 Safety Wrappers for Lazy Static
 unsafe impl Sync for AuthCircuit {}
 unsafe impl Send for AuthCircuit {}
 
@@ -73,7 +71,7 @@ static APP_CIRCUIT: Lazy<AuthCircuit> = Lazy::new(|| {
 
     let data = builder.build::<C>();
 
-    // 🦁 FIX: 'num_gates' field does not exist. Use 'gates.len()'
+    // 🦁 FIX: 'num_gates' calculation
     let num_gates = data.common.gates.len();
 
     // Compute Circuit Hash
@@ -103,12 +101,14 @@ struct ProofResponse {
     metadata: ProofMetadata,
 }
 
+// 🦁 FIX: Added 'num_gates' field to match Kotlin data class
 #[derive(Serialize)]
 struct ProofMetadata {
     generation_time_ms: u64,
     proof_size_bytes: usize,
     circuit_version: &'static str,
     circuit_hash: String,
+    num_gates: usize, // <--- This was missing!
     proof_id: u64,
 }
 
@@ -145,7 +145,6 @@ fn string_to_field(input: &str) -> F {
     PoseidonHash::hash_no_pad(&inputs).elements[0]
 }
 
-// 🦁 FIX: Added 'static lifetime to 'code' to match Struct definition
 fn create_error_json(msg: &str, code: &'static str) -> String {
     let err = ErrorResponse {
         error: msg.to_string(),
@@ -177,7 +176,6 @@ fn generate_proof_internal(
     let domain_f = string_to_field(&domain);
     let challenge_f = string_to_field(&challenge);
 
-    // 🦁 FIX: Using stored targets ensures wires are connected correctly
     let mut pw = PartialWitness::new();
     pw.set_target(circuit.t_secret, secret_f);
     pw.set_target(circuit.t_domain, domain_f);
@@ -196,12 +194,11 @@ fn generate_proof_internal(
     
     let proof_b64 = general_purpose::STANDARD.encode(&proof_bytes);
     
-    // Extract Nullifier (Index 2: Domain, Challenge, Nullifier)
     let nullifier = proof.public_inputs[2].to_string();
 
     let duration = start.elapsed().as_millis() as u64;
 
-    // 6. Final JSON Response
+    // 🦁 FIX: Passing num_gates value
     let response = ProofResponse {
         nullifier,
         proof: proof_b64,
@@ -210,6 +207,7 @@ fn generate_proof_internal(
             proof_size_bytes: proof_bytes.len(),
             circuit_version: CIRCUIT_VERSION,
             circuit_hash: circuit.circuit_hash.clone(),
+            num_gates: circuit.data.common.gates.len(), // <--- Correctly passing gates length
             proof_id,
         }
     };
@@ -233,7 +231,6 @@ pub extern "system" fn Java_com_example_zkpapp_ZkAuth_generateSecureNullifier(
 ) -> jstring {
     init_logger();
 
-    // Safely Extract Strings
     let secret: String = match env.get_string(&secret_input) {
         Ok(v) => v.into(),
         Err(_) => return env.new_string(create_error_json("Bad Secret", "JNI_ERROR")).unwrap().into_raw(),
@@ -247,12 +244,10 @@ pub extern "system" fn Java_com_example_zkpapp_ZkAuth_generateSecureNullifier(
         Err(_) => return env.new_string(create_error_json("Bad Challenge", "JNI_ERROR")).unwrap().into_raw(),
     };
 
-    // Panic Safe Execution
     let result = panic::catch_unwind(|| {
         generate_proof_internal(secret, domain, challenge)
     });
 
-    // Handle Result
     let output_json = match result {
         Ok(Ok(json)) => json,
         Ok(Err(json_err)) => json_err,
@@ -274,7 +269,6 @@ pub extern "system" fn Java_com_example_zkpapp_ZkAuth_getCircuitInfo(
 
     let circuit = &*APP_CIRCUIT;
     
-    // 🦁 FIX: Correct field access for gates length
     let info = CircuitInfoResponse {
         version: CIRCUIT_VERSION,
         circuit_hash: circuit.circuit_hash.clone(),
