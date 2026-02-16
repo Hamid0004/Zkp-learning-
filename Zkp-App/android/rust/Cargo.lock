@@ -1111,6 +1111,7 @@ dependencies = [
  "hex",
  "jni",
  "log",
+ "once_cell",
  "plonky2",
  "plonky2_field",
  "rand",
@@ -1119,6 +1120,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "zeroize",
 ]
 
 [[package]]

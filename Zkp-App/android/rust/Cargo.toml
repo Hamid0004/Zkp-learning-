@@ -23,10 +23,12 @@ anyhow = "1.0"
 bincode = "1.3"
 base64 = "0.21"
 
-# 🔐 Cryptography & Security (New Dependencies Added ✅)
-sha2 = "0.10"          # SHA256 hashing for signatures
+# 🔐 Cryptography & Security
+sha2 = "0.10"          # SHA256 hashing
 rand = "0.8"           # Secure random number generation
 hex = "0.4"            # Hex string encoding
+zeroize = "1.7"        # ✅ NEW: Memory wiping (Secret cleanup)
+once_cell = "1.18"     # ✅ NEW: Global variables (Lazy static) ke liye zaroori
 
 # 🛂 Passport Security (Optional but kept if needed)
 rsa = { version = "0.9", features = ["sha2", "pem"] }
