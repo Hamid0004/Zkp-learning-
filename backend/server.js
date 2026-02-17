@@ -1,47 +1,74 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
 
-// Middleware
-app.use(cors()); // Allow Websites to talk to us
-app.use(bodyParser.json({ limit: '50mb' })); // ⚠️ Important: Allow Big Proofs (50MB limit)
-app.use(express.static('public')); // NEW LINE fronted file 
+// --- MIDDLEWARE ---
+app.use(cors());
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.static(path.join(__dirname, 'public')));
 
-// 🧠 IN-MEMORY DATABASE (Temporary Storage)
-// Format: { "session_id": { status: "pending", proof: null } }
+// --- IN-MEMORY DATABASE ---
 const sessions = new Map();
 
 console.log("🦁 ZK Relay Server Starting...");
 
-// 1. START SESSION (Website calls this to get a QR Code)
+// --- ROUTES ---
+
+// 1. START SESSION
 app.get('/api/start-session', (req, res) => {
-    const sessionId = require('crypto').randomUUID();
-    sessions.set(sessionId, { status: 'pending', proof: null });
+    const sessionId = crypto.randomUUID();
+    
+    // Default structure with metadata field
+    sessions.set(sessionId, { 
+        status: 'pending', 
+        proof: null, 
+        nullifier: null,
+        metadata: null // 🦁 Benchmarking data yahan store hoga
+    });
     
     console.log(`🆕 Session Created: ${sessionId}`);
+    
+    setTimeout(() => {
+        if (sessions.has(sessionId)) {
+            sessions.delete(sessionId);
+            console.log(`🗑️ Auto-deleted expired session: ${sessionId}`);
+        }
+    }, 10 * 60 * 1000); 
+
     res.json({ session_id: sessionId });
 });
 
-// 2. UPLOAD PROOF (Android App calls this)
+// 2. UPLOAD PROOF (Updated for Benchmarking)
 app.post('/api/upload-proof', (req, res) => {
-    const { session_id, proof_data } = req.body;
+    const sessionId = req.body.sessionId || req.body.session_id;
+    const proofData = req.body.proof || req.body.proof_data;
+    const nullifier = req.body.nullifier;
+    const metadata = req.body.metadata; // 🦁 NEW: Receiving Benchmark Metadata (Time, Gates, etc.)
 
-    if (!sessions.has(session_id)) {
+    console.log(`📥 Receiving Proof & Metadata for: ${sessionId}`);
+
+    if (!sessionId || !sessions.has(sessionId)) {
+        console.error(`❌ Session Invalid: ${sessionId}`);
         return res.status(404).json({ error: "Session Expired or Invalid" });
     }
 
-    // Save the proof
-    sessions.set(session_id, { status: 'completed', proof: proof_data });
+    // 🦁 Save Everything including Metadata
+    sessions.set(sessionId, { 
+        status: 'completed', 
+        proof: proofData,
+        nullifier: nullifier,
+        metadata: metadata // <--- Store it here!
+    });
     
-    console.log(`✅ Proof Received for: ${session_id}`);
+    console.log(`✅ Verified! Proof Time: ${metadata ? metadata.generation_time_ms : 'N/A'}ms`);
     res.json({ success: true });
 });
 
-// 3. CHECK STATUS (Website polls this to see if User scanned)
+// 3. CHECK STATUS
 app.get('/api/poll-status/:session_id', (req, res) => {
     const sessionId = req.params.session_id;
     const session = sessions.get(sessionId);
@@ -50,11 +77,14 @@ app.get('/api/poll-status/:session_id', (req, res) => {
         return res.status(404).json({ error: "Session Not Found" });
     }
 
-    // Return status and proof (if ready)
+    // Return status, proof, nullifier, and metadata to the website
     res.json(session);
 });
 
-// Start Server
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 Relay Server running on http://localhost:${PORT}`);
 });

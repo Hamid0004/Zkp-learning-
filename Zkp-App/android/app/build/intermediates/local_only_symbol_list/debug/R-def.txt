@@ -28,6 +28,7 @@ drawable btn_cyber_green
 drawable btn_cyber_orange
 drawable btn_neon_green
 drawable gradient_header_bg
+drawable ic_app_logo
 drawable ic_flash
 drawable ic_shield_lock
 drawable ic_zkp_logo

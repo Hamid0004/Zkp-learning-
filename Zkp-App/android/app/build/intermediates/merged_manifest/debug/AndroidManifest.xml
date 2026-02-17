@@ -8,38 +8,18 @@
         android:minSdkVersion="24"
         android:targetSdkVersion="34" />
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- PERMISSIONS -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-    <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <!-- Camera -->
     <uses-permission android:name="android.permission.CAMERA" />
-
-    <!-- NFC -->
     <uses-permission android:name="android.permission.NFC" />
-
-    <!-- Vibration for haptic feedback -->
     <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- Wake Lock - NEW: For OfflineMenuActivity QR transmission -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- Storage (for proof/credential caching if needed) -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- HARDWARE FEATURES -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
 
     <uses-feature
         android:name="android.hardware.nfc"
@@ -77,17 +57,12 @@
         android:debuggable="true"
         android:extractNativeLibs="false"
         android:hardwareAccelerated="true"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@drawable/ic_app_logo"
         android:label="ZKP Mobile"
         android:largeHeap="true"
-        android:roundIcon="@android:drawable/sym_def_app_icon"
+        android:roundIcon="@drawable/ic_app_logo"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- MAIN ENTRY POINT -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
         <activity
             android:name="com.example.zkpapp.MainActivity"
             android:exported="true"
@@ -99,18 +74,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- QR TRANSMISSION & VERIFICATION -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-        <!--
-            OfflineMenuActivity: QR Code Transmission
-            - Generates ZK proofs via Rust
-            - Displays animated QR codes (Fountain strategy)
-            - Requires wake lock to keep screen on
-        -->
         <activity
             android:name="com.example.zkpapp.OfflineMenuActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
@@ -118,34 +81,18 @@
             android:keepScreenOn="true"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-        <!--
-            VerifierActivity: QR Code Scanner & Proof Verifier
-            - Scans chunked QR codes
-            - Verifies ZK proofs offline
-            - Requires camera permission
-        -->
         <activity
             android:name="com.example.zkpapp.VerifierActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- AUTHENTICATION & BIOMETRICS -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-<!--             LoginActivity: User authentication -->
         <activity
             android:name="com.example.zkpapp.LoginActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:windowSoftInputMode="adjustResize" />
-
-<!--             PortraitCaptureActivity: Biometric photo capture -->
         <activity
             android:name="com.example.zkpapp.PortraitCaptureActivity"
             android:configChanges="orientation|screenSize"
@@ -153,25 +100,12 @@
             android:screenOrientation="portrait"
             android:stateNotNeeded="true"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-<!--             CameraActivity: General camera operations -->
         <activity
             android:name="com.example.zkpapp.CameraActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- NFC PASSPORT SCANNING -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-        <!--
-            PassportActivity: NFC passport reader
-            - Reads electronic passports
-            - Processes NFC TECH_DISCOVERED intents
-        -->
         <activity
             android:name="com.example.zkpapp.PassportActivity"
             android:exported="true"
@@ -188,50 +122,11 @@
                 android:name="android.nfc.action.TECH_DISCOVERED"
                 android:resource="@xml/nfc_tech_filter" />
         </activity>
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- ERROR HANDLING -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-<!--             ErrorActivity: Centralized error display -->
         <activity
             android:name="com.example.zkpapp.ErrorActivity"
             android:exported="false"
             android:launchMode="singleTop"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- SERVICES (Optional - for future background operations) -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-        <!--
-        Uncomment if you need background proof generation
-        <service
-            android:name=".services.ProofGenerationService"
-            android:exported="false"
-            android:enabled="true" />
-        -->
-
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- CONTENT PROVIDERS (Optional - for secure data sharing) -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-
-
-        <!--
-        Uncomment if you need file provider for sharing proofs
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-        -->
 
         <service
             android:name="androidx.camera.core.impl.MetadataHolderService"
@@ -286,14 +181,6 @@
                 android:value="androidx.startup" />
         </provider>
 
-        <activity
-            android:name="com.journeyapps.barcodescanner.CaptureActivity"
-            android:clearTaskOnLaunch="true"
-            android:screenOrientation="sensorLandscape"
-            android:stateNotNeeded="true"
-            android:theme="@style/zxing_CaptureTheme"
-            android:windowSoftInputMode="stateAlwaysHidden" />
-
         <receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"
             android:directBootAware="false"
@@ -330,6 +217,14 @@
         <receiver
             android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
             android:exported="false" />
+
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:clearTaskOnLaunch="true"
+            android:screenOrientation="sensorLandscape"
+            android:stateNotNeeded="true"
+            android:theme="@style/zxing_CaptureTheme"
+            android:windowSoftInputMode="stateAlwaysHidden" />
     </application>
 
 </manifest>

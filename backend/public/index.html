@@ -1,113 +1,481 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZKP Secure Login</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 350px; }
-        h2 { color: #333; margin-bottom: 10px; }
-        p { color: #666; font-size: 14px; }
-        #qr-container { margin: 20px auto; padding: 10px; border: 2px dashed #ddd; display: inline-block; }
-        .status { margin-top: 20px; font-weight: bold; color: #888; }
-        .success { color: #2ecc71; }
-        .hidden { display: none; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZKP | Future of Identity</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    /* ─── Tokens ──────────────────────────────────────────────── */
+    :root {
+      --neon-blue:   #00d2ff;
+      --neon-purple: #9d50bb;
+      --neon-green:  #00ff88;
+      --cyber-bg:    #050b18;
+      --glass:       rgba(255, 255, 255, 0.04);
+      --border:      rgba(255, 255, 255, 0.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ─── Base ────────────────────────────────────────────────── */
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--cyber-bg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+    }
+
+    /* ─── Galaxy Starfield Canvas ─────────────────────────────── */
+    #starfield {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ─── Parallax Grid ───────────────────────────────────────── */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background-image:
+        linear-gradient(rgba(0,210,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,210,255,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      transform: perspective(600px) rotateX(55deg) translateY(20%);
+      transform-origin: center bottom;
+      animation: gridScroll 25s linear infinite;
+      mask-image: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    @keyframes gridScroll {
+      from { background-position: 0 0; }
+      to   { background-position: 0 60px; }
+    }
+
+    /* ─── Card Wrapper ────────────────────────────────────────── */
+    .scene {
+      position: relative;
+      z-index: 10;
+      perspective: 1000px;
+    }
+
+    .card {
+      background: var(--glass);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      padding: 52px 44px 44px;
+      border-radius: 28px;
+      border: 1px solid var(--border);
+      box-shadow:
+        0 0 0 1px rgba(0,210,255,0.06),
+        0 32px 64px rgba(0,0,0,0.7),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+      text-align: center;
+      width: 420px;
+      animation: cardIn 0.9s cubic-bezier(0.22,1,0.36,1) both;
+      transition: transform 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-6px) rotateX(1.5deg);
+      box-shadow:
+        0 0 0 1px rgba(0,210,255,0.12),
+        0 40px 80px rgba(0,0,0,0.75),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(40px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+
+    /* Corner accents */
+    .card::before, .card::after {
+      content: '';
+      position: absolute;
+      width: 20px; height: 20px;
+      border-color: var(--neon-blue);
+      border-style: solid;
+      opacity: 0.4;
+    }
+    .card::before { top: 14px; left: 14px; border-width: 1.5px 0 0 1.5px; border-radius: 4px 0 0 0; }
+    .card::after  { bottom: 14px; right: 14px; border-width: 0 1.5px 1.5px 0; border-radius: 0 0 4px 0; }
+
+    /* ─── Logo ────────────────────────────────────────────────── */
+    .lion-logo {
+      font-size: 58px;
+      display: block;
+      margin-bottom: 14px;
+      filter:
+        drop-shadow(0 0 12px var(--neon-blue))
+        drop-shadow(0 0 28px var(--neon-purple));
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes logoPulse {
+      0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 12px var(--neon-blue)) drop-shadow(0 0 28px var(--neon-purple)); }
+      50%       { transform: scale(1.07); filter: drop-shadow(0 0 20px var(--neon-blue)) drop-shadow(0 0 45px var(--neon-purple)); }
+    }
+
+    /* ─── Headings ────────────────────────────────────────────── */
+    h2 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      background: linear-gradient(110deg, var(--neon-blue) 20%, var(--neon-purple) 80%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      color: rgba(138, 148, 173, 0.8);
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 0;
+    }
+
+    /* ─── QR Hologram Container ───────────────────────────────── */
+    #qr-container {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding: 22px;
+      border-radius: 20px;
+      margin: 28px 0 22px;
+      background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(0,210,255,0.35);
+      box-shadow:
+        0 0 30px rgba(0,210,255,0.3),
+        0 0 60px rgba(157,80,187,0.2),
+        inset 0 0 20px rgba(0,210,255,0.05);
+      animation: hologram 3s ease-in-out infinite;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      min-width: 200px;
+      min-height: 200px;
+    }
+
+    #qr-container:hover {
+      transform: scale(1.04) rotate(-0.5deg);
+      box-shadow:
+        0 0 50px rgba(0,210,255,0.5),
+        0 0 80px rgba(157,80,187,0.35),
+        inset 0 0 30px rgba(0,210,255,0.08);
+    }
+
+    @keyframes hologram {
+      0%, 100% { transform: translateY(0);   box-shadow: 0 0 30px rgba(0,210,255,0.3), 0 0 60px rgba(157,80,187,0.2); }
+      50%       { transform: translateY(-6px); box-shadow: 0 0 50px rgba(0,210,255,0.5), 0 0 90px rgba(157,80,187,0.35); }
+    }
+
+    /* ─── Status Box ──────────────────────────────────────────── */
+    .status-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 22px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(0,210,255,0.18);
+      animation: statusGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes statusGlow {
+      0%, 100% { box-shadow: 0 0 12px rgba(0,210,255,0.2); }
+      50%       { box-shadow: 0 0 24px rgba(0,210,255,0.45); }
+    }
+
+    .loader-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+      box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-purple);
+      animation: dotPulse 1.4s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { transform: scale(1);   opacity: 1;   }
+      50%       { transform: scale(1.7); opacity: 0.4; }
+    }
+
+    .status-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--neon-blue);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    /* ─── Success Card ────────────────────────────────────────── */
+    .success-icon {
+      font-size: 66px;
+      color: var(--neon-green);
+      text-shadow:
+        0 0 20px rgba(0,255,136,0.6),
+        0 0 50px rgba(0,255,136,0.3);
+      margin-bottom: 18px;
+      display: block;
+      animation: successPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    @keyframes successPop {
+      from { transform: scale(0.5); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    .success-title {
+      background: linear-gradient(110deg, var(--neon-green) 20%, #61ffc1 80%) !important;
+    }
+
+    .nullifier-container {
+      background: rgba(0,0,0,0.4);
+      padding: 16px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(0,210,255,0.25);
+      margin-top: 24px;
+      text-align: left;
+      box-shadow: 0 0 20px rgba(0,210,255,0.1);
+    }
+
+    .nullifier-label {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--neon-blue);
+      font-size: 9px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      display: block;
+      margin-bottom: 10px;
+      opacity: 0.8;
+    }
+
+    .nullifier-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,0.85);
+      word-break: break-all;
+      line-height: 1.7;
+    }
+
+    /* ─── Utility ─────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
 
+  <!-- Galaxy Starfield Canvas -->
+  <canvas id="starfield"></canvas>
+
+  <!-- Parallax Grid -->
+  <div class="grid-bg"></div>
+
+  <!-- ── Login Card ────────────────────────────────────────────── -->
+  <div class="scene">
     <div class="card" id="login-card">
-        <h2>🦁 ZK Login</h2>
-        <p>Scan this QR with your ZKP Mobile App</p>
-        
-        <div id="qr-container"></div>
-        
-        <div class="status" id="status-text">
-            <div class="loader"></div> Waiting for Scan...
-        </div>
+      <span class="lion-logo">🦁</span>
+      <h2>ZK-PROTOCOL</h2>
+      <p class="subtitle">Zero-Knowledge Identity Gateway</p>
+
+      <div id="qr-container"></div>
+
+      <div class="status-box">
+        <div class="loader-dot"></div>
+        <span class="status-text" id="status-label">Awaiting Encrypted Link…</span>
+      </div>
     </div>
 
+    <!-- ── Success Card ─────────────────────────────────────────── -->
     <div class="card hidden" id="success-card">
-        <h1 style="font-size: 50px;">✅</h1>
-        <h2 class="success">Identity Verified!</h2>
-        <p>You have securely logged in without password.</p>
-        <div style="background: #eee; padding: 10px; border-radius: 5px; margin-top: 20px; word-break: break-all; font-family: monospace; font-size: 12px;">
-            <strong>Nullifier:</strong><br>
-            <span id="nullifier-val">...</span>
-        </div>
+      <span class="success-icon">✦</span>
+      <h2 class="success-title">VERIFIED</h2>
+      <p class="subtitle">Proof integrated successfully.</p>
+
+      <div class="nullifier-container">
+        <span class="nullifier-label">Nullifier Hash</span>
+        <div class="nullifier-val" id="nullifier-val">…</div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        // 🦁 CONFIGURATION
-        const API_URL = window.location.origin + "/api"; // Auto-detect server URL
-        let sessionId = null;
-        let pollInterval = null;
 
-        // 1. Start Session (On Load)
-        async function startSession() {
-            try {
-                const res = await fetch(`${API_URL}/start-session`);
-                const data = await res.json();
-                sessionId = data.session_id;
+  <!-- ── Galaxy Stars (Canvas) ─────────────────────────────────── -->
+  <script>
+  (function () {
+    const canvas = document.getElementById('starfield');
+    const ctx    = canvas.getContext('2d');
 
-                console.log("🦁 Session ID:", sessionId);
+    let W, H, stars = [];
+    const STAR_COUNT = 280;
 
-                // Generate QR Code
-                // QR Data Format: Just the Session ID string
-                new QRCode(document.getElementById("qr-container"), {
-                    text: sessionId,
-                    width: 180,
-                    height: 180
-                });
+    function resize () {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
 
-                // Start Listening (Polling)
-                pollInterval = setInterval(checkStatus, 2000); // Check every 2 seconds
+    /* Star factory */
+    function makeStar () {
+      const hue = Math.random() < 0.15
+        ? (Math.random() < 0.5 ? 195 : 280)   // occasional blue or purple tint
+        : 0;                                   // white
+      return {
+        x:    Math.random() * W,
+        y:    Math.random() * H,
+        r:    0.4 + Math.random() * 1.6,       // radius 0.4 – 2px
+        baseAlpha: 0.25 + Math.random() * 0.65,
+        alpha: 0,
+        twinklePeriod: 2000 + Math.random() * 4000,   // ms for one twinkle cycle
+        twinkleOffset: Math.random() * Math.PI * 2,
+        driftX: (Math.random() - 0.5) * 0.012,        // slow galaxy drift
+        driftY: -0.006 - Math.random() * 0.018,       // always gently upward
+        hue,
+      };
+    }
 
-            } catch (err) {
-                console.error("Setup Failed:", err);
-                document.getElementById("status-text").innerText = "❌ Server Error. Is Backend running?";
-            }
+    function initStars () {
+      stars = Array.from({ length: STAR_COUNT }, makeStar);
+      /* Scatter initial positions so screen isn't empty at start */
+      stars.forEach(s => { s.alpha = s.baseAlpha; });
+    }
+
+    function draw (ts) {
+      ctx.clearRect(0, 0, W, H);
+
+      for (const s of stars) {
+        /* Twinkle: smooth sine wave */
+        const t = (ts / s.twinklePeriod) * Math.PI * 2 + s.twinkleOffset;
+        s.alpha = s.baseAlpha * (0.45 + 0.55 * (Math.sin(t) * 0.5 + 0.5));
+
+        /* Drift */
+        s.x += s.driftX;
+        s.y += s.driftY;
+
+        /* Wrap around */
+        if (s.y < -4)       { s.y = H + 2; s.x = Math.random() * W; }
+        if (s.x < -4)       s.x = W + 2;
+        if (s.x > W + 4)    s.x = -2;
+
+        /* Glow for larger stars */
+        if (s.r > 1.1) {
+          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 3.5);
+          const col = s.hue
+            ? `hsla(${s.hue},90%,75%,`
+            : 'rgba(255,255,255,';
+          g.addColorStop(0,   col + (s.alpha * 0.9) + ')');
+          g.addColorStop(0.4, col + (s.alpha * 0.25) + ')');
+          g.addColorStop(1,   col + '0)');
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r * 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = g;
+          ctx.fill();
         }
 
-        // 2. Poll Status (Loop)
-        async function checkStatus() {
-            if (!sessionId) return;
+        /* Core pixel */
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = s.hue
+          ? `hsla(${s.hue},90%,90%,${s.alpha})`
+          : `rgba(255,255,255,${s.alpha})`;
+        ctx.fill();
+      }
 
-            try {
-                const res = await fetch(`${API_URL}/poll-status/${sessionId}`);
-                // Agar 404 aaye (Session not found) to ignore karein, wait karein
-                if (!res.ok) return; 
+      requestAnimationFrame(draw);
+    }
 
-                const data = await res.json();
+    window.addEventListener('resize', () => { resize(); initStars(); });
+    resize();
+    initStars();
+    requestAnimationFrame(draw);
+  })();
+  </script>
 
-                if (data.status === 'completed') {
-                    // 🎉 SUCCESS!
-                    clearInterval(pollInterval); // Stop checking
-                    showSuccess(data.proof);
-                }
-            } catch (err) {
-                console.error("Polling Error:", err);
-            }
-        }
 
-        // 3. Update UI on Success
-        function showSuccess(proofData) {
-            // Proof format: "Nullifier | ProofString"
-            // Hum isay tod kar sirf Nullifier dikhayenge UI par
-            const parts = proofData.split("|");
-            const nullifier = parts[0] || "Unknown";
+  <!-- ── ZKP Session Logic ──────────────────────────────────────── -->
+  <script>
+  const API_URL = window.location.origin + '/api';
+  let sessionId   = null;
+  let pollInterval = null;
 
-            document.getElementById("login-card").classList.add("hidden");
-            document.getElementById("success-card").classList.remove("hidden");
-            document.getElementById("nullifier-val").innerText = nullifier;
-        }
+  async function startSession () {
+    try {
+      const res  = await fetch(`${API_URL}/start-session`);
+      const data = await res.json();
+      sessionId = data.session_id;
 
-        // Start everything
-        startSession();
-    </script>
+      const qrDiv = document.getElementById('qr-container');
+      qrDiv.innerHTML = '';
+
+      new QRCode(qrDiv, {
+        text: sessionId,
+        width: 200,
+        height: 200,
+        colorDark:     '#050b18',
+        colorLight:    '#ffffff',
+        correctLevel:  QRCode.CorrectLevel.H,
+      });
+
+      pollInterval = setInterval(checkStatus, 2000);
+
+    } catch (err) {
+      console.error('Setup failed:', err);
+      const lbl = document.getElementById('status-label');
+      lbl.textContent  = 'OFFLINE';
+      lbl.style.color  = '#ff4b4b';
+    }
+  }
+
+  async function checkStatus () {
+    if (!sessionId) return;
+    try {
+      const res = await fetch(`${API_URL}/poll-status/${sessionId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.status === 'completed') {
+        clearInterval(pollInterval);
+
+        const sessionData = {
+          nullifier: data.nullifier  || 'Unknown',
+          proof:     data.proof      || '',
+          metadata:  data.metadata   || { generation_time_ms: 0, num_gates: 0 },
+        };
+        localStorage.setItem('zkp_session', JSON.stringify(sessionData));
+        showSuccess(data.nullifier);
+      }
+    } catch (err) {
+      console.error('Polling error:', err);
+    }
+  }
+
+  function showSuccess (nullifier) {
+    document.getElementById('login-card').classList.add('hidden');
+
+    const sc = document.getElementById('success-card');
+    sc.classList.remove('hidden');
+    document.getElementById('nullifier-val').textContent = nullifier;
+
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 2000);
+  }
+
+  startSession();
+  </script>
+
 </body>
 </html>

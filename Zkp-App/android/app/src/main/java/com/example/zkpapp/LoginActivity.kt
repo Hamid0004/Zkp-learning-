@@ -3,13 +3,10 @@ package com.example.zkpapp
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.VibrationEffect
-import android.os.Vibrator
+import android.os.*
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -32,96 +29,96 @@ class LoginActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
     private var qrCardView: View? = null
+    private val hideViewsIds = listOf(
+        R.id.imgDynamicQr,
+        R.id.btnTransmit,
+        R.id.btnGotoScanner
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
         statusText = findViewById(R.id.tvStatus)
+        qrCardView = findViewById<View>(R.id.imgDynamicQr)?.let { findRootCard(it) }
 
-        val qrImage = findViewById<View>(R.id.imgDynamicQr)
-        val parent1 = qrImage?.parent as? View
-        val parent2 = parent1?.parent as? View
-        val parent3 = parent2?.parent as? View
-        qrCardView = parent3 ?: parent2
-
-        // Identity Check
+        // Identity check
         if (!IdentityStorage.hasIdentity()) {
             Toast.makeText(this, "⚠️ Identity Missing", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
 
-        // Hide unnecessary UI
-        qrCardView?.visibility = View.GONE
-        findViewById<View>(R.id.imgDynamicQr)?.visibility = View.GONE
-        findViewById<View>(R.id.btnTransmit)?.visibility = View.GONE
-        findViewById<View>(R.id.btnGotoScanner)?.visibility = View.GONE
-
-        statusText.text = "🦁 Starting Web Scanner..."
-        statusText.setTextColor(Color.WHITE)
-
+        hideViewsSmart()
+        showStatus("🦁 Starting Web Scanner...", Color.WHITE)
         startWebQrScanner()
     }
 
-    // -----------------------------------------------------------
-    // 🔵 WEB LOGIN LOGIC
-    // -----------------------------------------------------------
+    // ------------------------------
+    // Smarter view hiding
+    // ------------------------------
+    private fun findRootCard(view: View): View {
+        var parent = view.parent
+        var lastView: View? = view
+        while (parent is ViewGroup) {
+            lastView = parent
+            parent = parent.parent
+        }
+        return lastView ?: view
+    }
 
+    private fun hideViewsSmart() {
+        qrCardView?.visibility = View.GONE
+        hideViewsIds.forEach { id ->
+            findViewById<View>(id)?.visibility = View.GONE
+        }
+    }
+
+    private fun showStatus(text: String, color: Int, size: Float = 20f) {
+        statusText.apply {
+            this.text = text
+            setTextColor(color)
+            textSize = size
+        }
+    }
+
+    // ------------------------------
+    // Web QR Scanner
+    // ------------------------------
     private fun startWebQrScanner() {
-        val integrator = IntentIntegrator(this)
-        integrator.setCaptureActivity(PortraitCaptureActivity::class.java)
-        integrator.setOrientationLocked(true)
-        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
-        integrator.setPrompt("🦁 Scan Web Login QR")
-        integrator.setCameraId(0)
-        integrator.setBeepEnabled(true)
-        integrator.setBarcodeImageEnabled(false)
-        integrator.initiateScan()
+        IntentIntegrator(this).apply {
+            setCaptureActivity(PortraitCaptureActivity::class.java)
+            setOrientationLocked(true)
+            setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+            setPrompt("🦁 Scan Web Login QR")
+            setCameraId(0)
+            setBeepEnabled(true)
+            setBarcodeImageEnabled(false)
+            initiateScan()
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-        if (result != null) {
-            if (result.contents == null) {
-                finish()
-            } else {
-                performZkLogin(result.contents)
-            }
-        } else {
-            super.onActivityResult(requestCode, resultCode, data)
-        }
+        IntentIntegrator.parseActivityResult(requestCode, resultCode, data)?.let { result ->
+            if (result.contents == null) finish()
+            else performZkLogin(result.contents)
+        } ?: super.onActivityResult(requestCode, resultCode, data)
     }
 
     private fun performZkLogin(sessionId: String) {
 
-        statusText.setOnClickListener(null) // Clear old retry listener
-
-        statusText.text = "🦁 Generating Proof..."
-        statusText.setTextColor(Color.parseColor("#FF9800"))
-        statusText.textSize = 20f
+        statusText.setOnClickListener(null)
+        showStatus("🦁 Generating Proof...", Color.parseColor("#FF9800"))
 
         lifecycleScope.launch {
             ZkAuthManager.startUniversalLogin(
                 context = this@LoginActivity,
                 sessionId = sessionId,
 
-                onStatus = { msg ->
-                    statusText.text = msg
-                },
+                onStatus = { msg -> showStatus(msg, Color.parseColor("#FF9800")) },
 
-                // 🦁 CHANGE 1: Receive Metadata Here
                 onSuccess = { meta ->
-                    
-                    // 1. Success Haptic Feedback
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= 26) {
-                        vibrator.vibrate(VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        vibrator.vibrate(150)
-                    }
-
-                    // 2. Display Benchmark Report
+                    triggerVibration(150)
                     val benchmarkReport = """
                         ✅ LOGIN APPROVED!
                         
@@ -130,46 +127,37 @@ class LoginActivity : AppCompatActivity() {
                         ⚙️ Gates: ${meta.num_gates}
                         🔑 ID: #${meta.proof_id}
                         
-                        (Auto-closing in 4s...)
+                        (Redirecting to Dashboard in 4s...)
                     """.trimIndent()
+                    showStatus(benchmarkReport, Color.parseColor("#4CAF50"), 18f)
 
-                    statusText.text = benchmarkReport
-                    statusText.setTextColor(Color.parseColor("#4CAF50")) // Green
-                    statusText.textSize = 18f 
-
-                    Toast.makeText(this@LoginActivity, "Login Successful!", Toast.LENGTH_SHORT).show()
-
-                    // 3. Hold screen for 4 seconds so you can read it
                     Handler(Looper.getMainLooper()).postDelayed({
+                        Toast.makeText(this@LoginActivity, "Login Successful!", Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this@LoginActivity, OfflineMenuActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        })
                         finish()
                     }, 4000)
                 },
 
-                // 4. Error Handling
                 onError = { error ->
-                    statusText.text = "$error\n\nTap to retry"
-                    statusText.setTextColor(Color.RED)
-
-                    // Error ke liye bhi thodi vibration
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= 26) {
-                         vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
-                    }
-
-                    Toast.makeText(this@LoginActivity, error, Toast.LENGTH_LONG).show()
-
-                    // Retry on tap
-                    statusText.setOnClickListener {
-                        statusText.setOnClickListener(null)
-                        statusText.text = "🦁 Restarting Scanner..."
-                        statusText.setTextColor(Color.WHITE)
-
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            startWebQrScanner()
-                        }, 800)
-                    }
+                    Toast.makeText(this@LoginActivity, error, Toast.LENGTH_SHORT).show()
+                    triggerVibration(500)
+                    showStatus("🦁 Scan Web Login QR", Color.WHITE)
+                    Handler(Looper.getMainLooper()).postDelayed({ startWebQrScanner() }, 800)
                 }
             )
+        }
+    }
+
+    private fun triggerVibration(durationMs: Long) {
+        (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.let { vibrator ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(durationMs)
+            }
         }
     }
 }

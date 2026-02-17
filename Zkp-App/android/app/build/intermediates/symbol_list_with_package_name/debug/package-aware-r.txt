@@ -3069,6 +3069,7 @@ drawable design_snackbar_background
 drawable googleg_disabled_color_18
 drawable googleg_standard_color_18
 drawable gradient_header_bg
+drawable ic_app_logo
 drawable ic_arrow_back_black_24
 drawable ic_call_answer
 drawable ic_call_answer_low

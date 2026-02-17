@@ -4,23 +4,19 @@
         "source": "com.example.zkpapp-main-41:/layout/activity_offline_menu.xml"
     },
     {
-        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-mergeDebugResources-38:/layout/activity_login.xml",
-        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_login.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_camera.xml",
+        "source": "com.example.zkpapp-main-41:/layout/activity_camera.xml"
     },
     {
-        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-mergeDebugResources-38:/layout/activity_camera.xml",
-        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_camera.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_main.xml",
+        "source": "com.example.zkpapp-main-41:/layout/activity_main.xml"
     },
     {
-        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-mergeDebugResources-38:/layout/activity_verifier.xml",
-        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_verifier.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_verifier.xml",
+        "source": "com.example.zkpapp-main-41:/layout/activity_verifier.xml"
     },
     {
-        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-mergeDebugResources-38:/layout/activity_offline_menu.xml",
-        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_offline_menu.xml"
-    },
-    {
-        "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-mergeDebugResources-38:/layout/activity_main.xml",
-        "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/layout/activity_main.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_login.xml",
+        "source": "com.example.zkpapp-main-41:/layout/activity_login.xml"
     }
 ]

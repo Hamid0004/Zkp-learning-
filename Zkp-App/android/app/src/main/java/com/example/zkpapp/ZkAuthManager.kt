@@ -42,7 +42,6 @@ object ZkAuthManager {
         context: Context,
         sessionId: String,
         onStatus: (String) -> Unit,
-        // 🦁 CHANGE 1: onSuccess ab Metadata return karega (Benchmarks ke liye)
         onSuccess: (ProofMetadata) -> Unit, 
         onError: (String) -> Unit,
     ) {
@@ -69,8 +68,7 @@ object ZkAuthManager {
 
             onStatus("⚙️ Generating ZK Proof...")
 
-            // 3. 🦁 NEW: Use modern 'authenticate' function (Async & Type-Safe)
-            // Benchmarking ab Rust ke andar ho raha hai, humein timer ki zaroorat nahi.
+            // 3. Generate Proof
             val authResult = ZkAuth.authenticate(
                 secret = secret,
                 domain = domain,
@@ -80,7 +78,6 @@ object ZkAuthManager {
             // 4. Handle Result
             when (authResult) {
                 is ZkAuthResult.Error -> {
-                    // Logic Flow intact: Error hua to report karo aur ruk jao
                     Log.e("ZkAuth", "Proof Gen Failed: ${authResult.code}")
                     onError("❌ Proof Error: ${authResult.message}")
                     return 
@@ -90,16 +87,21 @@ object ZkAuthManager {
                     val proofData = authResult.result
                     val meta = proofData.metadata
 
-                    // 🦁 UX: Show Benchmark immediately
                     onStatus("⚡ Proof in ${meta.generation_time_ms}ms\n☁️ Uploading...")
 
                     // 5. Upload to Server
                     val response = withContext(Dispatchers.IO) {
-                        api.uploadProof(ProofRequest(sessionId, proofData.proof))
+                        // 🦁 FIX IS HERE: We now pass 'nullifier' along with session_id and proof
+                        api.uploadProof(
+                            ProofRequest(
+                                session_id = sessionId,
+                                nullifier = proofData.nullifier, // ✅ Sending ID to Server
+                                proof = proofData.proof
+                            )
+                        )
                     }
 
                     if (response.isSuccessful) {
-                        // 🦁 Pass Metadata to UI for Display
                         onSuccess(meta) 
                     } else {
                         onError(mapError(response.code()))

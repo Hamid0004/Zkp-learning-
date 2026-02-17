@@ -2,37 +2,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- PERMISSIONS -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    
-    <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- Camera -->
     <uses-permission android:name="android.permission.CAMERA" />
     
-    <!-- NFC -->
     <uses-permission android:name="android.permission.NFC" />
     
-    <!-- Vibration for haptic feedback -->
     <uses-permission android:name="android.permission.VIBRATE" />
     
-    <!-- Wake Lock - NEW: For OfflineMenuActivity QR transmission -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     
-    <!-- Storage (for proof/credential caching if needed) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"
         tools:ignore="ScopedStorage" />
 
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- HARDWARE FEATURES -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    
     <uses-feature 
         android:name="android.hardware.nfc" 
         android:required="true" />
@@ -48,19 +34,17 @@
     <application
         android:name=".ZkpApplication"
         android:allowBackup="true"
-        android:icon="@android:drawable/sym_def_app_icon"
+        
+        android:icon="@drawable/ic_app_logo"
+        android:roundIcon="@drawable/ic_app_logo"
+        
         android:label="ZKP Mobile"
-        android:roundIcon="@android:drawable/sym_def_app_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         tools:ignore="GoogleAppIndexingWarning">
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- MAIN ENTRY POINT -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -72,16 +56,6 @@
             </intent-filter>
         </activity>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- QR TRANSMISSION & VERIFICATION -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
-        <!-- 
-            OfflineMenuActivity: QR Code Transmission
-            - Generates ZK proofs via Rust
-            - Displays animated QR codes (Fountain strategy)
-            - Requires wake lock to keep screen on
-        -->
         <activity 
             android:name=".OfflineMenuActivity"
             android:exported="false"
@@ -90,12 +64,6 @@
             android:keepScreenOn="true"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
-        <!-- 
-            VerifierActivity: QR Code Scanner & Proof Verifier
-            - Scans chunked QR codes
-            - Verifies ZK proofs offline
-            - Requires camera permission
-        -->
         <activity
             android:name=".VerifierActivity"
             android:exported="false"
@@ -103,13 +71,6 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- AUTHENTICATION & BIOMETRICS -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
-        <!-- 
-            LoginActivity: User authentication
-        -->
         <activity 
             android:name=".LoginActivity"
             android:exported="false"
@@ -117,9 +78,6 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- 
-            PortraitCaptureActivity: Biometric photo capture
-        -->
         <activity
             android:name=".PortraitCaptureActivity"
             android:exported="false"
@@ -128,9 +86,6 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:configChanges="orientation|screenSize" />
 
-        <!-- 
-            CameraActivity: General camera operations
-        -->
         <activity
             android:name=".CameraActivity"
             android:exported="false"
@@ -138,15 +93,6 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:configChanges="orientation|screenSize" />
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- NFC PASSPORT SCANNING -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
-        <!-- 
-            PassportActivity: NFC passport reader
-            - Reads electronic passports
-            - Processes NFC TECH_DISCOVERED intents
-        -->
         <activity
             android:name=".PassportActivity"
             android:exported="true"
@@ -162,45 +108,11 @@
                 android:resource="@xml/nfc_tech_filter" />
         </activity>
 
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- ERROR HANDLING -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
-        <!-- 
-            ErrorActivity: Centralized error display
-        -->
         <activity 
             android:name=".ErrorActivity"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:launchMode="singleTop" />
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- SERVICES (Optional - for future background operations) -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
-        <!-- Uncomment if you need background proof generation
-        <service
-            android:name=".services.ProofGenerationService"
-            android:exported="false"
-            android:enabled="true" />
-        -->
-
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        <!-- CONTENT PROVIDERS (Optional - for secure data sharing) -->
-        <!-- ═══════════════════════════════════════════════════════════ -->
-        
-        <!-- Uncomment if you need file provider for sharing proofs
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-        -->
 
     </application>
 
