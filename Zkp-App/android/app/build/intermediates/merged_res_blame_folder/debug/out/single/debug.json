@@ -80,8 +80,8 @@
         "source": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-main-41:/drawable/btn_cyber_green.xml"
     },
     {
-        "merged": "com.example.zkpapp-merged_res-39:/drawable_ic_launcher_round.xml.flat",
-        "source": "com.example.zkpapp-main-41:/drawable/ic_launcher_round.xml"
+        "merged": "com.example.zkpapp-merged_res-39:/drawable-v26_ic_launcher_round.xml.flat",
+        "source": "com.example.zkpapp-main-41:/drawable-v26/ic_launcher_round.xml"
     },
     {
         "merged": "/home/codespace/.gradle/daemon/8.2/com.example.zkpapp-merged_res-39:/drawable_btn_cyber_orange.xml.flat",
