@@ -3081,6 +3081,8 @@ drawable ic_clear_black_24
 drawable ic_clock_black_24dp
 drawable ic_flash
 drawable ic_keyboard_black_24dp
+drawable ic_launcher_background
+drawable ic_launcher_round
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
@@ -3550,6 +3552,7 @@ id pressed
 id progressBar
 id progress_circular
 id progress_horizontal
+id qrLoginRoot
 id radio
 id ratio
 id rectangles
@@ -3832,6 +3835,7 @@ layout activity_camera
 layout activity_login
 layout activity_main
 layout activity_offline_menu
+layout activity_qr_login
 layout activity_verifier
 layout custom_dialog
 layout design_bottom_navigation_item

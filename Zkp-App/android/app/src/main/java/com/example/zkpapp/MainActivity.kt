@@ -6,42 +6,69 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
+/**
+ * MainActivity - Dashboard / Entry Screen
+ *
+ * Flow:
+ * 1️⃣ Scan Passport → Generate Identity
+ * 2️⃣ Scan QR → LoginActivity (Web login only)
+ * 3️⃣ Offline Identity → OfflineMenuActivity (QR Transmit / Verify)
+ * 4️⃣ Test Proof → VerifierActivity
+ */
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 🟦 BLUE BUTTON: SCAN QR TO LOGIN (Phase 7 - Web)
-        // Logic: Yeh 'LoginActivity' kholega jo ab sirf Web Scanner hai
+        // ----------------------------------------
+        // 🟦 SCAN QR FOR WEB LOGIN
+        // Opens LoginActivity in WEB_LOGIN mode
+        // ----------------------------------------
         findViewById<Button>(R.id.btnScanQrLogin).setOnClickListener {
             if (IdentityStorage.hasIdentity()) {
-                val intent = Intent(this, LoginActivity::class.java)
-                intent.putExtra("MODE", "WEB_LOGIN") 
+                val intent = Intent(this, LoginActivity::class.java).apply {
+                    putExtra("MODE", "WEB_LOGIN")
+                }
                 startActivity(intent)
             } else {
-                Toast.makeText(this, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "⚠️ Please Scan Passport First!",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 
-        // 🟧 ORANGE BUTTON: CREATE ID
+        // ----------------------------------------
+        // 🟧 SCAN PASSPORT TO CREATE IDENTITY
+        // Opens PassportActivity
+        // ----------------------------------------
         findViewById<Button>(R.id.btnScanPassport).setOnClickListener {
             startActivity(Intent(this, PassportActivity::class.java))
         }
 
-        // 🟩 GREEN BUTTON: OFFLINE IDENTITY (Phase 8 - Dashboard)
-        // 🦁 FIX: Isay 'LoginActivity' se hata kar 'OfflineMenuActivity' par lagaya gaya hai
+        // ----------------------------------------
+        // 🟩 OFFLINE IDENTITY MENU
+        // Opens OfflineMenuActivity (QR + Transmit/Verify)
+        // ----------------------------------------
         findViewById<Button>(R.id.btnOfflineIdentity).setOnClickListener {
             if (IdentityStorage.hasIdentity()) {
-                // ✅ CORRECT PATH: Offline Menu (QR + Transmit/Verify Buttons)
                 val intent = Intent(this, OfflineMenuActivity::class.java)
                 startActivity(intent)
             } else {
-                Toast.makeText(this, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    "⚠️ Please Scan Passport First!",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
 
-        // ⬜ GREY BUTTON: TEST PROOF (Direct Verifier)
+        // ----------------------------------------
+        // ⬜ TEST PROOF
+        // Directly opens VerifierActivity
+        // ----------------------------------------
         findViewById<Button>(R.id.btnTestProof).setOnClickListener {
             startActivity(Intent(this, VerifierActivity::class.java))
         }

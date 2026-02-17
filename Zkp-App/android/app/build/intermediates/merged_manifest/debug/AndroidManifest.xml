@@ -60,7 +60,7 @@
         android:icon="@drawable/ic_app_logo"
         android:label="ZKP Mobile"
         android:largeHeap="true"
-        android:roundIcon="@drawable/ic_app_logo"
+        android:roundIcon="@drawable/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
         <activity
@@ -74,6 +74,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.example.zkpapp.QrLoginActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
         <activity
             android:name="com.example.zkpapp.OfflineMenuActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
@@ -142,6 +147,9 @@
             android:exported="false" >
             <meta-data
                 android:name="com.google.firebase.components:com.google.mlkit.vision.text.internal.TextRegistrar"
+                android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                android:name="com.google.firebase.components:com.google.mlkit.vision.barcode.internal.BarcodeRegistrar"
                 android:value="com.google.firebase.components.ComponentRegistrar" />
             <meta-data
                 android:name="com.google.firebase.components:com.google.mlkit.vision.common.internal.VisionCommonRegistrar"

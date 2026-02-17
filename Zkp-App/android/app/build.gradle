@@ -2,7 +2,7 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'kotlin-parcelize'
-    // 🦁 FIX: Version '1.9.20' wapas laga diya hai (ya jo aapka Kotlin version ho)
+    // 🦁 Kotlin Serialization for Rust JSON outputs
     id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.20'
 }
 
@@ -20,7 +20,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // 🦁 CRITICAL FOR RUST: Rust ki .so files yahan se load hongi
+    // 🦁 Load Rust .so libraries
     sourceSets {
         main {
             jniLibs.srcDirs = ['src/main/jniLibs']
@@ -45,10 +45,9 @@ android {
 
     buildFeatures {
         viewBinding true
-        buildConfig true // Kabhi kabhi debug flags ke liye chahiye hota hai
+        buildConfig true
     }
 
-    // 🦁 CRITICAL FOR CRYPTO LIBS: Duplicate files error rokne ke liye
     packagingOptions {
         pickFirst 'META-INF/LICENSE'
         pickFirst 'META-INF/NOTICE'
@@ -67,8 +66,9 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // ML Kit & Camera (Phase 6 - Passport Scan)
+    // ML Kit & Camera (Phase 6 - Passport Scan & QR)
     implementation 'com.google.android.gms:play-services-mlkit-text-recognition:19.0.0'
+    implementation 'com.google.mlkit:barcode-scanning:17.1.0'
     implementation "androidx.camera:camera-core:1.3.1"
     implementation "androidx.camera:camera-camera2:1.3.1"
     implementation "androidx.camera:camera-lifecycle:1.3.1"
@@ -89,8 +89,7 @@ dependencies {
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'com.google.zxing:core:3.4.1'
 
-    // 🦁 PHASE 7 KEY DEPENDENCIES (Ye ZkAuth.kt ke liye zaroori hain)
-    
+    // 🦁 PHASE 7 KEY DEPENDENCIES (ZkAuth.kt)
     // 1. Serialization (JSON Parsing for Rust Output)
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2'
     

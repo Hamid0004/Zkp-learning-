@@ -15,6 +15,14 @@ import com.example.zkpapp.auth.ZkAuthManager
 import com.google.zxing.integration.android.IntentIntegrator
 import kotlinx.coroutines.launch
 
+/**
+ * LoginActivity - Web QR Login with Benchmark
+ *
+ * Flow:
+ * 1️⃣ Scan Web QR → Generate ZKP Proof
+ * 2️⃣ Benchmark display → Redirect back to Dashboard
+ * 3️⃣ Handles errors gracefully and allows rescan
+ */
 class LoginActivity : AppCompatActivity() {
 
     companion object {
@@ -42,7 +50,7 @@ class LoginActivity : AppCompatActivity() {
         statusText = findViewById(R.id.tvStatus)
         qrCardView = findViewById<View>(R.id.imgDynamicQr)?.let { findRootCard(it) }
 
-        // Identity check
+        // 🛡 Identity must exist
         if (!IdentityStorage.hasIdentity()) {
             Toast.makeText(this, "⚠️ Identity Missing", Toast.LENGTH_SHORT).show()
             finish()
@@ -55,7 +63,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     // ------------------------------
-    // Smarter view hiding
+    // Smart view hiding
     // ------------------------------
     private fun findRootCard(view: View): View {
         var parent = view.parent
@@ -105,8 +113,10 @@ class LoginActivity : AppCompatActivity() {
         } ?: super.onActivityResult(requestCode, resultCode, data)
     }
 
+    // ------------------------------
+    // ZKP Proof Generation + Benchmark
+    // ------------------------------
     private fun performZkLogin(sessionId: String) {
-
         statusText.setOnClickListener(null)
         showStatus("🦁 Generating Proof...", Color.parseColor("#FF9800"))
 
@@ -119,6 +129,7 @@ class LoginActivity : AppCompatActivity() {
 
                 onSuccess = { meta ->
                     triggerVibration(150)
+
                     val benchmarkReport = """
                         ✅ LOGIN APPROVED!
                         
@@ -129,11 +140,13 @@ class LoginActivity : AppCompatActivity() {
                         
                         (Redirecting to Dashboard in 4s...)
                     """.trimIndent()
+
                     showStatus(benchmarkReport, Color.parseColor("#4CAF50"), 18f)
 
+                    // Redirect back to Dashboard instead of OfflineMenu
                     Handler(Looper.getMainLooper()).postDelayed({
                         Toast.makeText(this@LoginActivity, "Login Successful!", Toast.LENGTH_SHORT).show()
-                        startActivity(Intent(this@LoginActivity, OfflineMenuActivity::class.java).apply {
+                        startActivity(Intent(this@LoginActivity, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         })
                         finish()
