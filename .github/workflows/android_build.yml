@@ -11,9 +11,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # ── Step 1: Pull the full repo ─────────────────────────────────────────
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    # ── Step 2: Validate gradlew has not been tampered with (supply chain) ─
+    - name: Validate Gradle Wrapper
+      uses: gradle/wrapper-validation-action@v2
+
+    # ── Step 3: Install Java 17 Temurin (LTS, fully supported by AGP 8.3+) ─
+    #    NOTE: Project targets VERSION_17, jvmTarget=17 in app/build.gradle
+    #    Java 21 avoided due to jlink bug with android-34 + AGP < 8.5
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -21,27 +29,41 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # �� UPGRADE: Purana 'actions-rs' hata diya, Naya tool lagaya
+    # ── Step 4: Install Rust nightly ───────────────────────────────────────
+    #    Plonky2 requires nightly for const generics + unstable features
+    #    Target: aarch64-linux-android (ARM64 — covers 95%+ of modern devices)
     - name: Set up Rust Toolchain
       uses: dtolnay/rust-toolchain@nightly
       with:
         targets: aarch64-linux-android
         components: rust-src
 
+    # ── Step 5: Install cargo-ndk ──────────────────────────────────────────
+    #    Bridges Rust → Android NDK, handles .so output + ABI targeting
     - name: Install cargo-ndk
       run: cargo install cargo-ndk
 
+    # ── Step 6: Compile Plonky2 ZKP library → native ARM64 .so ────────────
+    #    Output: app/src/main/jniLibs/arm64-v8a/libzkp.so
+    #    --release: enables full Rust optimizations (LTO, inlining, SIMD)
+    #    This is where all ZKP proof generation/verification lives
     - name: Build Rust Library for Android
       working-directory: ./Zkp-App/android/rust
       run: |
         cargo ndk -t arm64-v8a -o ../app/src/main/jniLibs build --release
 
+    # ── Step 7: Assemble the Android APK ──────────────────────────────────
+    #    Gradle picks up the .so from jniLibs and packages it into the APK
+    #    chmod ensures gradlew is executable on the Linux CI runner
     - name: Build Debug APK
       working-directory: ./Zkp-App/android
       run: |
         chmod +x gradlew
         ./gradlew assembleDebug
 
+    # ── Step 8: Upload APK as downloadable CI artifact ────────────────────
+    #    Available in GitHub Actions → workflow run → Artifacts section
+    #    Contains: Plonky2 .so + all Android code bundled in debug APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
