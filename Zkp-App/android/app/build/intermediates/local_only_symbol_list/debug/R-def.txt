@@ -39,6 +39,7 @@ drawable qr_border
 drawable rounded_border
 id btnFlash
 id btnGotoScanner
+id btnLogin
 id btnOfflineIdentity
 id btnScanPassport
 id btnScanQrLogin
@@ -62,6 +63,7 @@ id tvStatus
 id tvSubtitle
 id tvTitle
 id viewFinder
+layout activity_auth
 layout activity_camera
 layout activity_login
 layout activity_main

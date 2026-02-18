@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-37:/values-w600dp-land-v13/values-w600dp-land-v13.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-w600dp-land-v13/values-w600dp-land-v13.xml",
             "map": [
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/e9d41936cad77677db0928957cc67866/transformed/material-1.11.0/res/values-w600dp-land-v13/values-w600dp-land-v13.xml",

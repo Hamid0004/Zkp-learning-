@@ -1,26 +1,30 @@
 [
     {
-        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_offline_menu.xml",
-        "source": "com.example.zkpapp-main-41:/layout/activity_offline_menu.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_verifier.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_verifier.xml"
     },
     {
-        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_camera.xml",
-        "source": "com.example.zkpapp-main-41:/layout/activity_camera.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_main.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_main.xml"
     },
     {
-        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_main.xml",
-        "source": "com.example.zkpapp-main-41:/layout/activity_main.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_camera.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_camera.xml"
     },
     {
-        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_qr_login.xml",
-        "source": "com.example.zkpapp-main-41:/layout/activity_qr_login.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_offline_menu.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_offline_menu.xml"
     },
     {
-        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_verifier.xml",
-        "source": "com.example.zkpapp-main-41:/layout/activity_verifier.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_qr_login.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_qr_login.xml"
     },
     {
-        "merged": "com.example.zkpapp-mergeDebugResources-38:/layout/activity_login.xml",
-        "source": "com.example.zkpapp-main-41:/layout/activity_login.xml"
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_auth.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_auth.xml"
+    },
+    {
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_login.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_login.xml"
     }
 ]

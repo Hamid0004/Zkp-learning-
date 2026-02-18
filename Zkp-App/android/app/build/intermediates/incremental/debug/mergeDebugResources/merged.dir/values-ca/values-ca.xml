@@ -31,6 +31,8 @@
     <string msgid="8875138169939072951" name="abc_shareactionprovider_share_with">"Comparteix amb"</string>
     <string msgid="9055268688411532828" name="abc_shareactionprovider_share_with_application">"Comparteix amb <ns1:g id="APPLICATION_NAME">%s</ns1:g>"</string>
     <string msgid="1656852541809559762" name="abc_toolbar_collapse_description">"Replega"</string>
+    <string msgid="2102429900219199821" name="biometric_or_screen_lock_prompt_message">"Utilitza la biometria o el bloqueig de pantalla per continuar"</string>
+    <string msgid="1160635338192065472" name="biometric_prompt_message">"Utilitza la biometria per continuar"</string>
     <string name="bottomsheet_action_collapse">Replega el full inferior</string>
     <string name="bottomsheet_action_expand">Desplega el full inferior</string>
     <string name="bottomsheet_action_expand_halfway">Desplega fins a la meitat</string>
@@ -64,8 +66,25 @@
     <string name="common_open_on_phone">Obre al telèfon</string>
     <string name="common_signin_button_text">Inicia sessió</string>
     <string name="common_signin_button_text_long">Inicia la sessió amb Google</string>
+    <string msgid="5912733858573823945" name="confirm_device_credential_password">"Utilitza la contrasenya"</string>
+    <string msgid="4776854077120974966" name="default_error_msg">"Error desconegut"</string>
     <string name="error_icon_content_description">Error</string>
     <string name="exposed_dropdown_menu_content_description">Mostra el menú desplegable</string>
+    <string msgid="4562557128765735254" name="face_or_screen_lock_prompt_message">"Utilitza la cara o el bloqueig de pantalla per continuar"</string>
+    <string msgid="2282389249605674226" name="face_prompt_message">"Utilitza la cara per continuar"</string>
+    <string msgid="5462024216548165325" name="fingerprint_dialog_icon_description">"Icona d\'empremta digital"</string>
+    <string msgid="1072308044213194243" name="fingerprint_dialog_touch_sensor">"Toca sensor d\'empremtes"</string>
+    <string msgid="8216738333501875566" name="fingerprint_error_hw_not_available">"El maquinari d\'empremtes digitals no està disponible."</string>
+    <string msgid="6306988885793029438" name="fingerprint_error_hw_not_present">"Aquest dispositiu no té sensor d\'empremtes digitals"</string>
+    <string msgid="7291787166416782245" name="fingerprint_error_lockout">"Massa intents. Torna-ho a provar més tard."</string>
+    <string msgid="7520712796891883488" name="fingerprint_error_no_fingerprints">"No s\'ha registrat cap empremta digital."</string>
+    <string msgid="7627716295344353987" name="fingerprint_error_user_canceled">"L\'usuari ha cancel·lat l\'operació d\'empremta digital."</string>
+    <string msgid="3873359464293253009" name="fingerprint_not_recognized">"No s\'ha reconegut"</string>
+    <string msgid="8382576858490514495" name="fingerprint_or_screen_lock_prompt_message">"Utilitza l\'empremta digital o el bloqueig de pantalla per continuar"</string>
+    <string msgid="7449360011861769080" name="fingerprint_prompt_message">"Utilitza l\'empremta digital per continuar"</string>
+    <string msgid="3791785319221634505" name="generic_error_no_device_credential">"No s\'ha definit cap PIN, patró o contrasenya."</string>
+    <string msgid="1807436368654974044" name="generic_error_no_keyguard">"Aquest dispositiu no admet utilitzar cap PIN, patró ni contrasenya."</string>
+    <string msgid="7309881387583143581" name="generic_error_user_canceled">"L\'usuari ha cancel·lat l\'autenticació."</string>
     <string name="icon_content_description">Icona del quadre de diàleg</string>
     <string name="item_view_role_description">Tabulador</string>
     <string name="material_clock_toggle_content_description">Selecciona a. m. o p. m.</string>
@@ -124,8 +143,16 @@
     <string name="mtrl_timepicker_cancel">Cancel·la</string>
     <string name="mtrl_timepicker_confirm">D’acord</string>
     <string name="password_toggle_content_description">Mostra la contrasenya</string>
+    <string msgid="5659570757430909869" name="screen_lock_prompt_message">"Introdueix el bloqueig de pantalla per continuar"</string>
     <string msgid="6264217191555673260" name="search_menu_title">"Cerca"</string>
     <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="6524145989441579428" name="use_biometric_label">"Utilitza la biometria"</string>
+    <string msgid="5385448280139639016" name="use_biometric_or_screen_lock_label">"Utilitza la biometria o el bloqueig de pantalla"</string>
+    <string msgid="6533512708069459542" name="use_face_label">"Utilitza la cara"</string>
+    <string msgid="2116180187159450292" name="use_face_or_screen_lock_label">"Utilitza el desbloqueig facial o el bloqueig de pantalla"</string>
+    <string msgid="6961788485681412417" name="use_fingerprint_label">"Utilitza l\'empremta digital"</string>
+    <string msgid="7577690399303139443" name="use_fingerprint_or_screen_lock_label">"Utilitza l\'empremta digital o el bloqueig de pantalla"</string>
+    <string msgid="5459869335976243512" name="use_screen_lock_label">"Utilitza el bloqueig de pantalla"</string>
     <string name="zxing_app_name">Barcode Scanner</string>
     <string name="zxing_button_ok">D\'acord</string>
     <string name="zxing_msg_camera_framework_bug">S\'ha produït un problema amb la càmera de l\'Android. Potser haureu de reiniciar el dispositiu.</string>

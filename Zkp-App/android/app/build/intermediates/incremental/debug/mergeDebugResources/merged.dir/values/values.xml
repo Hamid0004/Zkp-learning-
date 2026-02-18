@@ -1,5 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:ns1="http://schemas.android.com/tools" xmlns:ns2="urn:oasis:names:tc:xliff:document:1.2">
+    <string-array name="assume_strong_biometrics_models">
+        <item>Pixel 4</item>
+        <item>Pixel 4 XL</item>
+    </string-array>
+    <string-array name="crypto_fingerprint_fallback_prefixes">
+    </string-array>
+    <string-array name="crypto_fingerprint_fallback_vendors">
+        <item>samsung</item>
+    </string-array>
+    <string-array name="delay_showing_prompt_models">
+        <item>Pixel 4</item>
+        <item>Pixel 4 XL</item>
+    </string-array>
+    <string-array name="hide_fingerprint_instantly_prefixes">
+        <item>SM-A50</item> 
+        <item>SM-G973</item> 
+        <item>SM-G975</item> 
+        <item>SM-G977</item> 
+        <item>SM-G770</item> 
+        <item>SM-N970</item> 
+        <item>SM-N971</item> 
+        <item>SM-N975</item> 
+        <item>SM-N976</item> 
+        <item>SM-N770</item> 
+        <item>SC-03L</item> 
+        <item>SC-04L</item> 
+        <item>SC-05L</item> 
+        <item>SC-01M</item> 
+        <item>SCV41</item> 
+        <item>SCV42</item> 
+        <item>SCV45</item> 
+    </string-array>
+    <string-array name="keyguard_biometric_and_credential_exclude_vendors">
+    </string-array>
     <attr format="enum" name="animateCircleAngleTo">
         <enum name="bestChoice" value="0"/>
         <enum name="closest" value="1"/>
@@ -650,6 +684,7 @@
     <color name="background_floating_material_light">@android:color/white</color>
     <color name="background_material_dark">@color/material_grey_850</color>
     <color name="background_material_light">@color/material_grey_50</color>
+    <color name="biometric_error_color">#ff5722</color>
     <color name="black">#FF000000</color>
     <color name="bright_foreground_disabled_material_dark">#80ffffff</color>
     <color name="bright_foreground_disabled_material_light">#80000000</color>
@@ -1150,6 +1185,7 @@
     <dimen name="fastscroll_default_thickness">8dp</dimen>
     <dimen name="fastscroll_margin">0dp</dimen>
     <dimen name="fastscroll_minimum_range">50dp</dimen>
+    <dimen name="fingerprint_icon_size">64dp</dimen>
     <item format="float" name="highlight_alpha_material_colored" type="dimen">0.26</item>
     <item format="float" name="highlight_alpha_material_dark" type="dimen">0.20</item>
     <item format="float" name="highlight_alpha_material_light" type="dimen">0.12</item>
@@ -2024,6 +2060,8 @@
     <string name="app_name">ZKP Mobile</string>
     <string name="app_version" translatable="false">null</string>
     <string name="appbar_scrolling_view_behavior" translatable="false">com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior</string>
+    <string name="biometric_or_screen_lock_prompt_message">Use your biometric or screen lock to continue</string>
+    <string name="biometric_prompt_message">Use your biometric to continue</string>
     <string name="bottom_sheet_behavior" translatable="false">com.google.android.material.bottomsheet.BottomSheetBehavior</string>
     <string description="A description of an accessibility action to collapse the bottom sheet [CHAR LIMIT=NONE]" name="bottomsheet_action_collapse">Collapse the bottom sheet</string>
     <string description="A description of an accessibility action to expand the bottom sheet [CHAR LIMIT=NONE]" name="bottomsheet_action_expand">Expand the bottom sheet</string>
@@ -2059,6 +2097,8 @@
     <string name="common_open_on_phone">Open on phone</string>
     <string name="common_signin_button_text">Sign in</string>
     <string name="common_signin_button_text_long">Sign in with Google</string>
+    <string name="confirm_device_credential_password">Use password</string>
+    <string name="default_error_msg">Unknown error</string>
     <string name="define_zxingandroidembedded" translatable="false"/>
     <string description="Screen reader announcement for when a checkbox is on error. [CHAR LIMIT=NONE]" name="error_a11y_label">
     Error: invalid
@@ -2067,6 +2107,21 @@
     <string name="exposed_dropdown_menu_content_description">Show dropdown menu</string>
     <string name="fab_transformation_scrim_behavior" translatable="false">com.google.android.material.transformation.FabTransformationScrimBehavior</string>
     <string name="fab_transformation_sheet_behavior" translatable="false">com.google.android.material.transformation.FabTransformationSheetBehavior</string>
+    <string name="face_or_screen_lock_prompt_message">Use your face or screen lock to continue</string>
+    <string name="face_prompt_message">Use your face to continue</string>
+    <string name="fingerprint_dialog_icon_description">Fingerprint icon</string>
+    <string name="fingerprint_dialog_touch_sensor">Touch the fingerprint sensor</string>
+    <string name="fingerprint_error_hw_not_available">Fingerprint hardware not available.</string>
+    <string name="fingerprint_error_hw_not_present">This device does not have a fingerprint sensor</string>
+    <string name="fingerprint_error_lockout">Too many attempts. Please try again later.</string>
+    <string name="fingerprint_error_no_fingerprints">No fingerprints enrolled.</string>
+    <string name="fingerprint_error_user_canceled">Fingerprint operation canceled by user.</string>
+    <string name="fingerprint_not_recognized">Not recognized</string>
+    <string name="fingerprint_or_screen_lock_prompt_message">Use your fingerprint or screen lock to continue</string>
+    <string name="fingerprint_prompt_message">Use your fingerprint to continue</string>
+    <string name="generic_error_no_device_credential">No PIN, pattern, or password set.</string>
+    <string name="generic_error_no_keyguard">This device does not support PIN, pattern, or password.</string>
+    <string name="generic_error_user_canceled">Authentication canceled by user.</string>
     <string name="hide_bottom_view_on_scroll_behavior" translatable="false">com.google.android.material.behavior.HideBottomViewOnScrollBehavior</string>
     <string description="Content description for an icon that appears in the title area of a dialog" name="icon_content_description">Dialog Icon</string>
     <string name="item_view_role_description">Tab</string>
@@ -2190,6 +2245,7 @@
     <string name="path_password_eye_mask_strike_through" translatable="false">M2,4.27 L19.73,22 L22.27,19.46 L4.54,1.73 L4.54,1 L23,1 L23,23 L1,23 L1,4.27 Z</string>
     <string name="path_password_eye_mask_visible" translatable="false">M2,4.27 L2,4.27 L4.54,1.73 L4.54,1.73 L4.54,1 L23,1 L23,23 L1,23 L1,4.27 Z</string>
     <string name="path_password_strike_through" translatable="false">M3.27,4.27 L19.74,20.74</string>
+    <string name="screen_lock_prompt_message">Enter your screen lock to continue</string>
     <string name="search_menu_title">Search</string>
     <string name="searchbar_scrolling_view_behavior" translatable="false">
     com.google.android.material.search.SearchBar$ScrollingViewBehavior
@@ -2199,6 +2255,13 @@
     <string description="Title of the side sheet&apos;s accessibility pane that is spoken by TalkBack when the side sheet appears on screen. [CHAR_LIMIT=NONE]" name="side_sheet_accessibility_pane_title">Side Sheet</string>
     <string name="side_sheet_behavior" translatable="false">com.google.android.material.sidesheet.SideSheetBehavior</string>
     <string name="status_bar_notification_info_overflow">999+</string>
+    <string name="use_biometric_label">Use biometrics</string>
+    <string name="use_biometric_or_screen_lock_label">Use biometrics or screen lock</string>
+    <string name="use_face_label">Use face</string>
+    <string name="use_face_or_screen_lock_label">Use face or screen lock</string>
+    <string name="use_fingerprint_label">Use fingerprint</string>
+    <string name="use_fingerprint_or_screen_lock_label">Use fingerprint or screen lock</string>
+    <string name="use_screen_lock_label">Use screen lock</string>
     <string name="zxing_app_name">Barcode Scanner</string>
     <string name="zxing_button_ok">OK</string>
     <string name="zxing_msg_camera_framework_bug">Sorry, the Android camera encountered a problem. You may need to restart the device.</string>

@@ -99,4 +99,7 @@ dependencies {
     
     // 3. GSON (Legacy, used by Retrofit)
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    //Phase 8 - Biometric Authentication
+    implementation 'androidx.biometric:biometric:1.2.0-alpha04'
 }

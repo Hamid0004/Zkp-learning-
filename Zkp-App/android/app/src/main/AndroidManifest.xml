@@ -27,10 +27,8 @@
     <application
         android:name=".ZkpApplication"
         android:allowBackup="true"
-        
         android:icon="@drawable/ic_app_logo"
         android:roundIcon="@drawable/ic_launcher_round"
-        
         android:label="ZKP Mobile"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
@@ -40,14 +38,10 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTop"
             android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            </activity>
 
         <activity
             android:name=".QrLoginActivity"
@@ -112,6 +106,14 @@
             android:exported="false"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:launchMode="singleTop" />
+
+        <activity android:name=".AuthActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
     </application>
 </manifest>

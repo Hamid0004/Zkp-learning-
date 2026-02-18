@@ -31,6 +31,8 @@
     <string msgid="8875138169939072951" name="abc_shareactionprovider_share_with">"Şununla paylaş:"</string>
     <string msgid="9055268688411532828" name="abc_shareactionprovider_share_with_application">"<ns1:g id="APPLICATION_NAME">%s</ns1:g> ile paylaş"</string>
     <string msgid="1656852541809559762" name="abc_toolbar_collapse_description">"Daralt"</string>
+    <string msgid="2102429900219199821" name="biometric_or_screen_lock_prompt_message">"Devam etmek için biyometrik kimlik bilginizi veya ekran kilidinizi kullanın"</string>
+    <string msgid="1160635338192065472" name="biometric_prompt_message">"Devam etmek için biyometrik kimlik bilginizi kullanın"</string>
     <string name="bottomsheet_action_collapse">Alt sayfayı daralt</string>
     <string name="bottomsheet_action_expand">Alt sayfayı genişlet</string>
     <string name="bottomsheet_action_expand_halfway">Yarım genişlet</string>
@@ -64,8 +66,25 @@
     <string name="common_open_on_phone">Telefonda aç</string>
     <string name="common_signin_button_text">Oturum aç</string>
     <string name="common_signin_button_text_long">Google\'da oturum aç</string>
+    <string msgid="5912733858573823945" name="confirm_device_credential_password">"Şifre kullan"</string>
+    <string msgid="4776854077120974966" name="default_error_msg">"Bilinmeyen hata"</string>
     <string name="error_icon_content_description">Hata</string>
     <string name="exposed_dropdown_menu_content_description">Açılır menüyü göster</string>
+    <string msgid="4562557128765735254" name="face_or_screen_lock_prompt_message">"Devam etmek için yüz veya ekran kilidinizi kullanın"</string>
+    <string msgid="2282389249605674226" name="face_prompt_message">"Devam etmek için yüzünüzü kullanın"</string>
+    <string msgid="5462024216548165325" name="fingerprint_dialog_icon_description">"Parmak izi simgesi"</string>
+    <string msgid="1072308044213194243" name="fingerprint_dialog_touch_sensor">"Parmak izi sensörüne dokunun"</string>
+    <string msgid="8216738333501875566" name="fingerprint_error_hw_not_available">"Parmak izi donanımı kullanılamıyor."</string>
+    <string msgid="6306988885793029438" name="fingerprint_error_hw_not_present">"Bu cihazda parmak izi sensörü yok"</string>
+    <string msgid="7291787166416782245" name="fingerprint_error_lockout">"Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin."</string>
+    <string msgid="7520712796891883488" name="fingerprint_error_no_fingerprints">"Parmak izi kaydedilmedi."</string>
+    <string msgid="7627716295344353987" name="fingerprint_error_user_canceled">"Parmak izi işlemi kullanıcı tarafından iptal edildi."</string>
+    <string msgid="3873359464293253009" name="fingerprint_not_recognized">"Tanınmadı"</string>
+    <string msgid="8382576858490514495" name="fingerprint_or_screen_lock_prompt_message">"Devam etmek için parmak izi veya ekran kilidinizi kullanın"</string>
+    <string msgid="7449360011861769080" name="fingerprint_prompt_message">"Devam etmek için parmak izinizi kullanın"</string>
+    <string msgid="3791785319221634505" name="generic_error_no_device_credential">"PIN, desen veya şifre seti yok"</string>
+    <string msgid="1807436368654974044" name="generic_error_no_keyguard">"Bu cihaz PIN, desen veya şifre kullanımını desteklemiyor"</string>
+    <string msgid="7309881387583143581" name="generic_error_user_canceled">"Kimlik doğrulama kullanıcı tarafından iptal edildi."</string>
     <string name="icon_content_description">İletişim kutusu simgesi</string>
     <string name="item_view_role_description">Sekme</string>
     <string name="material_clock_toggle_content_description">ÖÖ veya ÖS\'yi seçin</string>
@@ -124,8 +143,16 @@
     <string name="mtrl_timepicker_cancel">İptal</string>
     <string name="mtrl_timepicker_confirm">Tamam</string>
     <string name="password_toggle_content_description">Şifreyi göster</string>
+    <string msgid="5659570757430909869" name="screen_lock_prompt_message">"Devam etmek için ekran kilidinizi girin"</string>
     <string msgid="6264217191555673260" name="search_menu_title">"Ara"</string>
     <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="6524145989441579428" name="use_biometric_label">"Biyometri kullan"</string>
+    <string msgid="5385448280139639016" name="use_biometric_or_screen_lock_label">"Biyometri veya ekran kilidi kullan"</string>
+    <string msgid="6533512708069459542" name="use_face_label">"Yüz tanıma kullan"</string>
+    <string msgid="2116180187159450292" name="use_face_or_screen_lock_label">"Yüz tanıma veya ekran kilidi kullan"</string>
+    <string msgid="6961788485681412417" name="use_fingerprint_label">"Parmak izi kullan"</string>
+    <string msgid="7577690399303139443" name="use_fingerprint_or_screen_lock_label">"Parmak izi veya ekran kilidi kullan"</string>
+    <string msgid="5459869335976243512" name="use_screen_lock_label">"Ekran kilidi kullan"</string>
     <string name="zxing_app_name">Barkod Tarayıcısı</string>
     <string name="zxing_button_ok">Tamam</string>
     <string name="zxing_msg_camera_framework_bug">Üzgünüz, Android kamera bir sorunla karşılaştı. Cihazı yeniden başlatmanız gerekebilir.</string>
