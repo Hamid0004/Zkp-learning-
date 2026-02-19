@@ -67,10 +67,9 @@ class MainActivity : AppCompatActivity() {
 
         // ----------------------------------------
         // ⬜ TEST PROOF
-        // Directly opens VerifierActivity
         // ----------------------------------------
         findViewById<Button>(R.id.btnTestProof).setOnClickListener {
-            startActivity(Intent(this, VerifierActivity::class.java))
+            startActivity(Intent(this, TestProofActivity::class.java))
         }
     }
 }

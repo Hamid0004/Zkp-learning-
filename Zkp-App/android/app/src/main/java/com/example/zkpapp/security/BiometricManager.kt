@@ -14,9 +14,11 @@ class BiometricManager(private val context: Context) {
         return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
+    // UPDATED FUNCTION: Accepts CryptoObject
     fun authenticateUser(
         activity: FragmentActivity,
-        onSuccess: () -> Unit,
+        cryptoObject: BiometricPrompt.CryptoObject, // 👈 New Parameter
+        onSuccess: (BiometricPrompt.AuthenticationResult) -> Unit, // 👈 Returns Result
         onError: (String) -> Unit
     ) {
         val executor = ContextCompat.getMainExecutor(context)
@@ -24,7 +26,8 @@ class BiometricManager(private val context: Context) {
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
-                onSuccess()
+                Log.d("BiometricManager", "Auth Success! CryptoObject Unlocked 🔓")
+                onSuccess(result)
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
@@ -34,13 +37,15 @@ class BiometricManager(private val context: Context) {
         }
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("ZK Identity Access")
-            .setSubtitle("Verify it's you")
+            .setTitle("ZK Identity Vault")
+            .setSubtitle("Touch sensor to access secured data")
             .setNegativeButtonText("Cancel")
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .build()
 
         val biometricPrompt = BiometricPrompt(activity, executor, callback)
-        biometricPrompt.authenticate(promptInfo)
+        
+        // Yahan hum CryptoObject pass kar rahe hain
+        biometricPrompt.authenticate(promptInfo, cryptoObject)
     }
 }

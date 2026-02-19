@@ -131,6 +131,11 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
         <activity
+            android:name="com.example.zkpapp.TestProofActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <activity
             android:name="com.example.zkpapp.AuthActivity"
             android:exported="true" >
             <intent-filter>

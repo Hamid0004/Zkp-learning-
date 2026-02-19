@@ -107,6 +107,12 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:launchMode="singleTop" />
 
+            <activity
+            android:name=".TestProofActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
         <activity android:name=".AuthActivity"
             android:exported="true">
             <intent-filter>
