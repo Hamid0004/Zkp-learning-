@@ -26,6 +26,8 @@ use plonky2::{
         proof::ProofWithPublicInputs,
     },
 };
+// ✅ Fix 1: Field trait import — from_canonical_u64 ke liye zaroori
+use plonky2::field::types::Field;
 use std::time::Instant;
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -113,8 +115,9 @@ fn run_benchmark_inner() -> Result<BenchmarkResult> {
     let witness_start = Instant::now();
 
     let mut pw = PartialWitness::new();
-    pw.set_target(a_target, F::from_canonical_u64(3))?;
-    pw.set_target(b_target, F::from_canonical_u64(7))?;
+    // ✅ Fix 2: set_target () return karta hai, ? operator nahi lagta
+    pw.set_target(a_target, F::from_canonical_u64(3));
+    pw.set_target(b_target, F::from_canonical_u64(7));
 
     result.witness_gen_ms = witness_start.elapsed().as_millis() as u64;
 

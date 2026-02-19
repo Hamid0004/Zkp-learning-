@@ -60,10 +60,10 @@
         android:debuggable="true"
         android:extractNativeLibs="false"
         android:hardwareAccelerated="true"
-        android:icon="@drawable/ic_app_logo"
+        android:icon="@mipmap/ic_launcher"
         android:label="ZKP Mobile"
         android:largeHeap="true"
-        android:roundIcon="@drawable/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
         <activity

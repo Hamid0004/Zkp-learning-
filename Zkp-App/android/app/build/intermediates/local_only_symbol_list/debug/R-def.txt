@@ -34,7 +34,7 @@ drawable ic_app_logo
 drawable ic_arrow_back
 drawable ic_flash
 drawable ic_launcher_background
-drawable ic_launcher_round
+drawable ic_launcher_foreground
 drawable ic_shield_lock
 drawable ic_zkp_logo
 drawable info_bg
@@ -88,6 +88,8 @@ layout activity_offline_menu
 layout activity_qr_login
 layout activity_test_proof
 layout activity_verifier
+mipmap ic_launcher
+mipmap ic_launcher_round
 string app_name
 style AppTheme
 xml nfc_tech_filter

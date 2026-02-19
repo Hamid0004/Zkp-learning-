@@ -24,18 +24,19 @@
         android:name="android.hardware.camera.autofocus" 
         android:required="false" />
 
-    <application
+     <application
         android:name=".ZkpApplication"
         android:allowBackup="true"
-        android:icon="@drawable/ic_app_logo"
-        android:roundIcon="@drawable/ic_launcher_round"
+        
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        
         android:label="ZKP Mobile"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         tools:ignore="GoogleAppIndexingWarning">
-
         <activity
             android:name=".MainActivity"
             android:exported="false"

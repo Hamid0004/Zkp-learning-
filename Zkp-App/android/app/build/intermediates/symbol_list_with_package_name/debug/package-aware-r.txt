@@ -3095,7 +3095,7 @@ drawable ic_clock_black_24dp
 drawable ic_flash
 drawable ic_keyboard_black_24dp
 drawable ic_launcher_background
-drawable ic_launcher_round
+drawable ic_launcher_foreground
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
@@ -3953,6 +3953,8 @@ layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
 layout zxing_barcode_scanner
 layout zxing_capture
+mipmap ic_launcher
+mipmap ic_launcher_round
 plurals mtrl_badge_content_description
 raw zxing_beep
 string abc_action_bar_home_description
