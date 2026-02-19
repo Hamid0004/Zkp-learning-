@@ -2,6 +2,7 @@
 name = "zkp_mobile"
 version = "0.1.0"
 edition = "2021"
+
 # 🦁 Force modern dependency resolution for Android
 resolver = "2"
 
@@ -13,6 +14,7 @@ crate-type = ["cdylib"]
 jni = { version = "0.21.1", default-features = false }
 
 # 🧠 ZKP Engine (Plonky2)
+# Used by: zk_auth.rs + proof_bench.rs (Test Proof Benchmark)
 plonky2 = "0.2.2"
 plonky2_field = "0.2.2"
 
@@ -27,8 +29,8 @@ base64 = "0.21"
 sha2 = "0.10"          # SHA256 hashing
 rand = "0.8"           # Secure random number generation
 hex = "0.4"            # Hex string encoding
-zeroize = "1.7"        # ✅ NEW: Memory wiping (Secret cleanup)
-once_cell = "1.18"     # ✅ NEW: Global variables (Lazy static) ke liye zaroori
+zeroize = "1.7"        # ✅ Memory wiping (Secret cleanup)
+once_cell = "1.18"     # ✅ Global variables (Lazy static) ke liye zaroori
 
 # 🛂 Passport Security (Optional but kept if needed)
 rsa = { version = "0.9", features = ["sha2", "pem"] }
@@ -40,6 +42,7 @@ base64ct = "=1.6.0"
 rayon = "=1.10.0"
 
 # 📝 Logging
+# Used by: lib.rs (init_logger) + proof_bench.rs (benchmark logs)
 log = "0.4"
 android_logger = "0.13"
 
