@@ -15,14 +15,13 @@ fn init_logger() {
 pub mod offline_identity;
 pub mod passport_security;
 pub mod zk_auth;
-pub mod proof_bench;   // ← NEW: Test Proof benchmark module
+pub mod proof_bench;   // Test Proof benchmark module
 
 // =========================================================
-// 🦁 JNI EXPORTS (The Bridge)
-// Note: Function names MUST match your Java/Kotlin package
+// 🦁 JNI EXPORTS
 // =========================================================
 
-// ─── EXISTING — BILKUL TOUCH NAHI KIYA ───────────────────────────────────────
+// ─── EXISTING — TOUCH NAHI KIYA ──────────────────────────────────────────────
 
 #[no_mangle]
 pub extern "C" fn Java_com_example_zkpapp_ZkAuthManager_initRust(
@@ -39,22 +38,14 @@ pub extern "C" fn Java_com_example_zkpapp_ZkAuthManager_generateZkpProof(
     _class: JClass,
     identity_json: JString,
 ) -> jstring {
-    // 🦁 Yeh line Plonky2 ko link karegi
-    // Hum zk_auth module se function call kar rahe hain
     let input: String = env.get_string(&identity_json).expect("Invalid JSON").into();
-    
     info!("Generating Proof for: {}", input);
-
-    // Placeholder for calling your actual ZK logic
-    // let proof = zk_auth::prove_identity(input); 
-    
+    // let proof = zk_auth::prove_identity(input);
     let response = format!("Proof Generated for {}", input);
     env.new_string(response).expect("Failed to create string").into_raw()
 }
 
-// ─── NEW — TEST PROOF BENCHMARK ───────────────────────────────────────────────
-//
-// TestProofActivity → ZkpJni.kt → yahan aata hai → proof_bench.rs
+// ─── NEW: Single run benchmark ────────────────────────────────────────────────
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_zkpapp_ZkpJni_runProofBenchmark(
@@ -62,54 +53,73 @@ pub extern "system" fn Java_com_example_zkpapp_ZkpJni_runProofBenchmark(
     _class: JClass,
 ) -> jobject {
     init_logger();
-    info!("🧪 Test Proof Benchmark Started!");
+    info!("🧪 Test Proof Benchmark (single run) started");
 
-    // proof_bench.rs se actual Plonky2 benchmark run karo
     let result = proof_bench::run_benchmark();
 
     info!(
-        "✅ Done → proof={}ms  verify={}ms  size={}bytes  valid={}",
-        result.proof_gen_ms,
-        result.verify_ms,
-        result.proof_size_bytes,
-        result.is_valid
+        "✅ Done → proof={}ms verify={}ms witness={}µs size={}bytes memory={}KB valid={}",
+        result.proof_gen_ms, result.verify_ms,
+        result.witness_gen_us, result.proof_size_bytes,
+        result.memory_kb, result.is_valid
     );
 
-    // Kotlin ProofBenchmarkResult object banao
-    match build_benchmark_result(&mut env, result) {
+    match build_result(&mut env, result) {
         Ok(obj) => obj,
-        Err(e) => {
-            log::error!("JNI object build failed: {}", e);
-            *JObject::null()
-        }
+        Err(e)  => { log::error!("JNI build failed: {}", e); *JObject::null() }
+    }
+}
+
+// ─── NEW: Median of 3 runs (spike filter) ────────────────────────────────────
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_zkpapp_ZkpJni_runProofBenchmarkMedian(
+    mut env: JNIEnv,
+    _class: JClass,
+) -> jobject {
+    init_logger();
+    info!("🧪 Test Proof Benchmark (median 3 runs) started");
+
+    let result = proof_bench::run_benchmark_median();
+
+    info!(
+        "✅ Median Done → proof={}ms verify={}ms witness={}µs size={}bytes memory={}KB valid={}",
+        result.proof_gen_ms, result.verify_ms,
+        result.witness_gen_us, result.proof_size_bytes,
+        result.memory_kb, result.is_valid
+    );
+
+    match build_result(&mut env, result) {
+        Ok(obj) => obj,
+        Err(e)  => { log::error!("JNI build failed: {}", e); *JObject::null() }
     }
 }
 
 // ── Helper: Rust BenchmarkResult → Kotlin ProofBenchmarkResult ───────────────
-fn build_benchmark_result(
+// Constructor signature:
+// ProofBenchmarkResult(Long, Long, Long, Long, Long, Int, Boolean, String, Long, Long)
+fn build_result(
     env: &mut JNIEnv,
-    result: proof_bench::BenchmarkResult,
+    r: proof_bench::BenchmarkResult,
 ) -> Result<jobject, jni::errors::Error> {
 
-    // Kotlin class: com.example.zkpapp.ProofBenchmarkResult
-    let class = env.find_class("com/example/zkpapp/ProofBenchmarkResult")?;
+    let class        = env.find_class("com/example/zkpapp/ProofBenchmarkResult")?;
+    let error_jstr   = env.new_string(&r.error_msg)?;
 
-    let error_jstring = env.new_string(&result.error_msg)?;
-
-    // Constructor signature Kotlin data class se match karta hai:
-    // ProofBenchmarkResult(Long, Long, Long, Long, Long, Int, Boolean, String)
     let obj = env.new_object(
         class,
-        "(JJJJJIZLjava/lang/String;)V",
+        "(JJJJJIZLjava/lang/String;JJ)V",
         &[
-            JValue::Long(result.circuit_setup_ms as i64),  // circuitSetupMs
-            JValue::Long(result.witness_gen_ms   as i64),  // witnessGenMs
-            JValue::Long(result.proof_gen_ms     as i64),  // proofGenMs
-            JValue::Long(result.verify_ms        as i64),  // verifyMs
-            JValue::Long(result.proof_size_bytes as i64),  // proofSizeBytes
-            JValue::Int(result.constraint_count  as i32),  // constraintCount
-            JValue::Bool(result.is_valid         as u8),   // isValid
-            JValue::Object(&error_jstring),                // errorMsg
+            JValue::Long(r.circuit_setup_ms   as i64),  // circuitSetupMs
+            JValue::Long(r.witness_gen_us      as i64),  // witnessGenUs  ✅
+            JValue::Long(r.proof_gen_ms        as i64),  // proofGenMs
+            JValue::Long(r.verify_ms           as i64),  // verifyMs
+            JValue::Long(r.proof_size_bytes    as i64),  // proofSizeBytes
+            JValue::Int(r.constraint_count     as i32),  // constraintCount
+            JValue::Bool(r.is_valid            as u8),   // isValid
+            JValue::Object(&error_jstr),                 // errorMsg
+            JValue::Long(r.memory_kb           as i64),  // memoryKb      ✅
+            JValue::Long(r.peak_memory_kb      as i64),  // peakMemoryKb  ✅
         ],
     )?;
 

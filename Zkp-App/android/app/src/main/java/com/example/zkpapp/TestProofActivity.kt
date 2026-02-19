@@ -19,7 +19,7 @@ import kotlin.concurrent.thread
  *
  * Measurements:
  * 🔴 MUST  → Proof Generation Time, Verification Time, Proof Size, Status
- * 🟡 GOOD  → Memory Usage, CPU Peak, Circuit Setup Time, Witness Gen Time, Constraint Count
+ * 🟡 GOOD  → Memory Usage (KB), CPU Peak, Circuit Setup, Witness Gen (µs), Constraint Count
  * 🟢 BONUS → Device, Android Version, CPU Arch, Run Count, Avg Time, Min/Max Time
  */
 class TestProofActivity : AppCompatActivity() {
@@ -35,7 +35,6 @@ class TestProofActivity : AppCompatActivity() {
     private lateinit var layoutResults: LinearLayout
     private lateinit var tvTimestamp: TextView
 
-    // Section containers
     private lateinit var cardMust: CardView
     private lateinit var cardGood: CardView
     private lateinit var cardBonus: CardView
@@ -46,8 +45,6 @@ class TestProofActivity : AppCompatActivity() {
     // ── State ─────────────────────────────────────────────────────────────────
     private var isRunning = false
     private val handler = Handler(Looper.getMainLooper())
-
-    // Stores all run times for avg/min/max
     private val runTimes = mutableListOf<Long>()
     private var runCount = 0
 
@@ -64,37 +61,32 @@ class TestProofActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_test_proof)
-
         bindViews()
         setupClickListeners()
         showIdleState()
     }
 
-    // ── View Binding ──────────────────────────────────────────────────────────
     private fun bindViews() {
-        btnRunTest        = findViewById(R.id.btnRunTest)
-        btnBack           = findViewById(R.id.btnBack)
-        tvStatus          = findViewById(R.id.tvStatus)
-        tvStatusEmoji     = findViewById(R.id.tvStatusEmoji)
-        progressBar       = findViewById(R.id.progressBar)
-        tvProgressStep    = findViewById(R.id.tvProgressStep)
-        layoutProgress    = findViewById(R.id.layoutProgress)
-        layoutResults     = findViewById(R.id.layoutResults)
-        tvTimestamp       = findViewById(R.id.tvTimestamp)
-        cardMust          = findViewById(R.id.cardMust)
-        cardGood          = findViewById(R.id.cardGood)
-        cardBonus         = findViewById(R.id.cardBonus)
-        layoutMustRows    = findViewById(R.id.layoutMustRows)
-        layoutGoodRows    = findViewById(R.id.layoutGoodRows)
-        layoutBonusRows   = findViewById(R.id.layoutBonusRows)
+        btnRunTest     = findViewById(R.id.btnRunTest)
+        btnBack        = findViewById(R.id.btnBack)
+        tvStatus       = findViewById(R.id.tvStatus)
+        tvStatusEmoji  = findViewById(R.id.tvStatusEmoji)
+        progressBar    = findViewById(R.id.progressBar)
+        tvProgressStep = findViewById(R.id.tvProgressStep)
+        layoutProgress = findViewById(R.id.layoutProgress)
+        layoutResults  = findViewById(R.id.layoutResults)
+        tvTimestamp    = findViewById(R.id.tvTimestamp)
+        cardMust       = findViewById(R.id.cardMust)
+        cardGood       = findViewById(R.id.cardGood)
+        cardBonus      = findViewById(R.id.cardBonus)
+        layoutMustRows = findViewById(R.id.layoutMustRows)
+        layoutGoodRows = findViewById(R.id.layoutGoodRows)
+        layoutBonusRows= findViewById(R.id.layoutBonusRows)
     }
 
-    // ── Click Listeners ───────────────────────────────────────────────────────
     private fun setupClickListeners() {
         btnBack.setOnClickListener { finish() }
-        btnRunTest.setOnClickListener {
-            if (!isRunning) startBenchmark()
-        }
+        btnRunTest.setOnClickListener { if (!isRunning) startBenchmark() }
     }
 
     // =========================================================================
@@ -118,17 +110,11 @@ class TestProofActivity : AppCompatActivity() {
         }
     }
 
-    // =========================================================================
-    // ✅ SIRF YEH FUNCTION CHANGE HUA — Real JNI call, no more Thread.sleep()
-    // =========================================================================
     private fun runFullBenchmark(): BenchmarkResult {
-
         updateStep("Setting up Plonky2 circuit…", 10)
         val memBefore = getUsedMemoryMb()
 
-        // ── 🦁 REAL RUST/JNI CALL ────────────────────────────────────────────
-        // proof_bench.rs → lib.rs → ZkpJni.kt → yahan
-        // Andar circuit setup, witness, proof, verify sab hota hai
+        // ── 🦁 REAL JNI CALL ─────────────────────────────────────────────────
         updateStep("Running Rust benchmark…", 30)
         val rustResult: ProofBenchmarkResult = ZkpJni.runProofBenchmark()
         // ─────────────────────────────────────────────────────────────────────
@@ -137,20 +123,14 @@ class TestProofActivity : AppCompatActivity() {
         updateStep("Verifying proof…", 85)
         updateStep("Collecting device info…", 95)
 
-        // ── Memory delta (Kotlin side measure) ────────────────────────────────
         val memAfter  = getUsedMemoryMb()
-        val memUsedMb = (memAfter - memBefore).coerceAtLeast(0L)
-
-        // ── Device info ───────────────────────────────────────────────────────
         val deviceModel = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
         val androidVer  = android.os.Build.VERSION.RELEASE
         val cpuArch     = System.getProperty("os.arch") ?: "Unknown"
         val cpuPeakPct  = estimateCpuPeak()
 
-        // ── Run times accumulate karo ─────────────────────────────────────────
         runTimes.add(rustResult.proofGenMs)
 
-        // ── Rust error check ──────────────────────────────────────────────────
         if (!rustResult.isValid && rustResult.errorMsg.isNotEmpty()) {
             throw Exception(rustResult.errorMsg)
         }
@@ -158,20 +138,19 @@ class TestProofActivity : AppCompatActivity() {
         updateStep("Done! ✓", 100)
 
         return BenchmarkResult(
-            // 🔴 MUST — Rust se real values
+            // 🔴 MUST
             proofGenerationMs = rustResult.proofGenMs,
             verificationMs    = rustResult.verifyMs,
             proofSizeKb       = rustResult.proofSizeKb,
             isValid           = rustResult.isValid,
-
-            // 🟡 GOOD — Rust + Kotlin
-            memoryUsedMb      = memUsedMb,
+            // 🟡 GOOD — now accurate
+            memoryKb          = rustResult.memoryKb,           // ✅ Rust heap KB
+            peakMemoryKb      = rustResult.peakMemoryKb,       // ✅ Peak memory
             cpuPeakPct        = cpuPeakPct,
             circuitSetupMs    = rustResult.circuitSetupMs,
-            witnessGenMs      = rustResult.witnessGenMs,
+            witnessGenUs      = rustResult.witnessGenUs,        // ✅ microseconds
             constraintCount   = rustResult.constraintCount,
-
-            // 🟢 BONUS — device + run stats
+            // 🟢 BONUS
             deviceModel       = deviceModel,
             androidVersion    = androidVer,
             cpuArch           = cpuArch,
@@ -183,7 +162,7 @@ class TestProofActivity : AppCompatActivity() {
     }
 
     // =========================================================================
-    // UI STATE MANAGEMENT — BILKUL SAME, TOUCH NAHI KIYA
+    // UI STATE MANAGEMENT
     // =========================================================================
 
     private fun showIdleState() {
@@ -214,7 +193,6 @@ class TestProofActivity : AppCompatActivity() {
             if (result.isValid) Color.parseColor("#22C55E")
             else Color.parseColor("#EF4444")
         )
-
         layoutProgress.visibility = View.GONE
         layoutResults.visibility  = View.VISIBLE
 
@@ -243,14 +221,14 @@ class TestProofActivity : AppCompatActivity() {
     }
 
     // =========================================================================
-    // METRIC ROW BUILDERS — BILKUL SAME, TOUCH NAHI KIYA
+    // METRIC ROW BUILDERS
     // =========================================================================
 
     private fun buildMustRows(r: BenchmarkResult) {
         layoutMustRows.removeAllViews()
         val rows = listOf(
-            MetricResult("Proof Generation",  "${r.proofGenerationMs}", "ms", "⚡", Color.parseColor("#3B82F6")),
-            MetricResult("Verification Time", "${r.verificationMs}",    "ms", "✅", Color.parseColor("#22C55E")),
+            MetricResult("Proof Generation",  "${r.proofGenerationMs}", "ms",  "⚡", Color.parseColor("#3B82F6")),
+            MetricResult("Verification Time", "${r.verificationMs}",    "ms",  "✅", Color.parseColor("#22C55E")),
             MetricResult("Proof Size", String.format("%.2f", r.proofSizeKb), "KB", "📦", Color.parseColor("#F59E0B")),
             MetricResult("Status", if (r.isValid) "SUCCESS" else "FAILED", "", "🔒",
                 if (r.isValid) Color.parseColor("#22C55E") else Color.parseColor("#EF4444"))
@@ -260,12 +238,25 @@ class TestProofActivity : AppCompatActivity() {
 
     private fun buildGoodRows(r: BenchmarkResult) {
         layoutGoodRows.removeAllViews()
+
+        // ✅ Witness: microseconds display
+        val witnessDisplay = if (r.witnessGenUs < 1000) "${r.witnessGenUs} µs"
+                             else "${r.witnessGenUs / 1000}.${(r.witnessGenUs % 1000)/100} ms"
+
+        // ✅ Memory: KB or MB
+        val memDisplay = if (r.memoryKb < 1024) "${r.memoryKb} KB"
+                         else "${r.memoryKb / 1024} MB"
+
+        val peakMemDisplay = if (r.peakMemoryKb < 1024) "${r.peakMemoryKb} KB"
+                             else "${r.peakMemoryKb / 1024} MB"
+
         val rows = listOf(
-            MetricResult("Memory Usage",       "${r.memoryUsedMb}",    "MB", "🧠", Color.parseColor("#A855F7")),
-            MetricResult("CPU Peak",           "${r.cpuPeakPct}",      "%",  "⚙️", Color.parseColor("#F59E0B")),
-            MetricResult("Circuit Setup",      "${r.circuitSetupMs}",  "ms", "🔧", Color.parseColor("#06B6D4")),
-            MetricResult("Witness Generation", "${r.witnessGenMs}",    "ms", "👁", Color.parseColor("#3B82F6")),
-            MetricResult("Constraint Count",   "${r.constraintCount}", "",   "🧩", Color.parseColor("#A855F7"))
+            MetricResult("Memory Used",        memDisplay,            "",   "🧠", Color.parseColor("#A855F7")),
+            MetricResult("Peak Memory",        peakMemDisplay,        "",   "📉", Color.parseColor("#A855F7")),
+            MetricResult("CPU Peak",           "${r.cpuPeakPct}",     "%",  "⚙️", Color.parseColor("#F59E0B")),
+            MetricResult("Circuit Setup",      "${r.circuitSetupMs}", "ms", "🔧", Color.parseColor("#06B6D4")),
+            MetricResult("Witness Generation", witnessDisplay,        "",   "👁", Color.parseColor("#3B82F6")),
+            MetricResult("Constraint Count",   "${r.constraintCount}","",   "🧩", Color.parseColor("#A855F7"))
         )
         rows.forEach { layoutGoodRows.addView(createMetricRow(it)) }
     }
@@ -288,27 +279,23 @@ class TestProofActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 16, 0, 16)
         }
-
         val tvEmoji = TextView(this).apply {
             text         = metric.emoji
             textSize     = 18f
             layoutParams = LinearLayout.LayoutParams(80, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
-
         val tvLabel = TextView(this).apply {
             text         = metric.label
             textSize     = 12f
             setTextColor(Color.parseColor("#64748B"))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-
         val tvValue = TextView(this).apply {
             text     = metric.value
             textSize = 15f
             setTextColor(metric.valueColor)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
-
         val tvUnit = TextView(this).apply {
             text         = "  ${metric.unit}"
             textSize     = 11f
@@ -318,17 +305,15 @@ class TestProofActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
-
         row.addView(tvEmoji)
         row.addView(tvLabel)
         row.addView(tvValue)
         if (metric.unit.isNotEmpty()) row.addView(tvUnit)
-
         return row
     }
 
     // =========================================================================
-    // HELPERS — BILKUL SAME, TOUCH NAHI KIYA
+    // HELPERS
     // =========================================================================
 
     private fun updateStep(step: String, progress: Int) {
@@ -350,25 +335,19 @@ class TestProofActivity : AppCompatActivity() {
             Thread.sleep(200)
             val reader2 = java.io.RandomAccessFile("/proc/stat", "r")
             val line2   = reader2.readLine(); reader2.close()
-
-            val toks1 = line1.split(" ").drop(2).map { it.toLongOrNull() ?: 0L }
-            val toks2 = line2.split(" ").drop(2).map { it.toLongOrNull() ?: 0L }
-
-            val idle1  = toks1[3]; val total1 = toks1.sum()
-            val idle2  = toks2[3]; val total2 = toks2.sum()
-
+            val toks1   = line1.split(" ").drop(2).map { it.toLongOrNull() ?: 0L }
+            val toks2   = line2.split(" ").drop(2).map { it.toLongOrNull() ?: 0L }
+            val idle1   = toks1[3]; val total1 = toks1.sum()
+            val idle2   = toks2[3]; val total2 = toks2.sum()
             val totalDiff = total2 - total1
             val idleDiff  = idle2  - idle1
-
             if (totalDiff == 0L) 0
             else ((1.0 - idleDiff.toDouble() / totalDiff) * 100).toInt().coerceIn(0, 100)
-        } catch (e: Exception) {
-            0
-        }
+        } catch (e: Exception) { 0 }
     }
 
     // =========================================================================
-    // DATA CLASS — BILKUL SAME, TOUCH NAHI KIYA
+    // DATA CLASS — updated fields
     // =========================================================================
 
     data class BenchmarkResult(
@@ -378,10 +357,11 @@ class TestProofActivity : AppCompatActivity() {
         val proofSizeKb       : Double,
         val isValid           : Boolean,
         // 🟡 GOOD
-        val memoryUsedMb      : Long,
+        val memoryKb          : Long,       // ✅ Rust heap KB
+        val peakMemoryKb      : Long,       // ✅ Peak memory
         val cpuPeakPct        : Int,
         val circuitSetupMs    : Long,
-        val witnessGenMs      : Long,
+        val witnessGenUs      : Long,       // ✅ microseconds
         val constraintCount   : Int,
         // 🟢 BONUS
         val deviceModel       : String,

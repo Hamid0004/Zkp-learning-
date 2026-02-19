@@ -1,59 +1,59 @@
 package com.example.zkpapp
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ZkpJni.kt
-//
-// Kotlin ↔ Rust JNI Bridge
-//
-// Usage in TestProofActivity:
-//   val result = ZkpJni.runProofBenchmark()
-//   Log.d("ZKP", "Proof: ${result.proofGenMs}ms")
+// ZkpJni.kt — Kotlin ↔ Rust JNI Bridge
 // ─────────────────────────────────────────────────────────────────────────────
 
 object ZkpJni {
-
-    // Rust .so library load karo
-    // Library naam Cargo.toml ke [lib] name se match karna chahiye
     init {
         System.loadLibrary("zkp_mobile")
     }
 
-    /**
-     * Rust se ZK Proof benchmark run karta hai
-     * Returns ProofBenchmarkResult with all measurements
-     */
+    /** Single run — direct result */
     external fun runProofBenchmark(): ProofBenchmarkResult
+
+    /** Median of 3 runs — spike filter (304ms jaise outliers remove) */
+    external fun runProofBenchmarkMedian(): ProofBenchmarkResult
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ProofBenchmarkResult.kt
+// ProofBenchmarkResult — Rust se aane wala data
 //
-// Rust se aane wala data class
-// lib.rs mein isi class ka object banana hota hai
+// CHANGES vs old version:
+// ✅ witness_gen_ms → witness_gen_us (microseconds, 0ms fix)
+// ✅ memory_kb added (Rust heap, 0MB fix)
+// ✅ peak_memory_kb added (proof gen ke waqt peak)
 // ─────────────────────────────────────────────────────────────────────────────
 
 data class ProofBenchmarkResult(
     // 🔴 MUST
-    val circuitSetupMs  : Long,     // Circuit initialize hone ka time
-    val witnessGenMs    : Long,     // Witness generate karne ka time
-    val proofGenMs      : Long,     // ZK Proof generate karne ka time
-    val verifyMs        : Long,     // Proof verify karne ka time
-    val proofSizeBytes  : Long,     // Proof ka size bytes mein
-    val constraintCount : Int,      // Circuit constraints count
-    val isValid         : Boolean,  // Verification pass hua ya nahi
-    val errorMsg        : String    // Agar koi error aaya toh
+    val circuitSetupMs  : Long,
+    val witnessGenUs    : Long,     // ✅ microseconds now
+    val proofGenMs      : Long,
+    val verifyMs        : Long,
+    val proofSizeBytes  : Long,
+    val constraintCount : Int,
+    val isValid         : Boolean,
+    val errorMsg        : String,
+    // 🟡 GOOD — now accurate
+    val memoryKb        : Long,     // ✅ Rust heap KB (was 0)
+    val peakMemoryKb    : Long,     // ✅ Peak during proof gen
 ) {
-    // ── Computed helpers ──────────────────────────────────────────────────────
-
     /** Proof size KB mein */
     val proofSizeKb: Double
         get() = proofSizeBytes / 1024.0
 
-    /** Total time = circuit + witness + proof + verify */
-    val totalMs: Long
-        get() = circuitSetupMs + witnessGenMs + proofGenMs + verifyMs
+    /** Witness time human readable */
+    val witnessGenDisplay: String
+        get() = if (witnessGenUs < 1000) "${witnessGenUs} µs"
+                else "${witnessGenUs / 1000}.${(witnessGenUs % 1000) / 100} ms"
 
-    /** Human readable status */
+    /** Memory human readable */
+    val memoryDisplay: String
+        get() = if (memoryKb < 1024) "${memoryKb} KB"
+                else "${memoryKb / 1024} MB"
+
+    /** Status text */
     val statusText: String
         get() = if (isValid) "SUCCESS" else "FAILED"
 }
