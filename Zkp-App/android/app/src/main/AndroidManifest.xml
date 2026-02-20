@@ -14,35 +14,36 @@
         android:maxSdkVersion="28"
         tools:ignore="ScopedStorage" />
 
-    <uses-feature 
-        android:name="android.hardware.nfc" 
+    <!-- ✅ Phase 6 Fix: NFC required=false — NFC nahi hone pe bhi app chale (simulation mode) -->
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera"
         android:required="true" />
-    <uses-feature 
-        android:name="android.hardware.camera" 
-        android:required="true" />
-    <uses-feature 
-        android:name="android.hardware.camera.autofocus" 
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
         android:required="false" />
 
-     <application
+    <application
         android:name=".ZkpApplication"
         android:allowBackup="true"
-        
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        
         android:label="ZKP Mobile"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         tools:ignore="GoogleAppIndexingWarning">
+
+        <!-- ── UNTOUCHED ACTIVITIES ─────────────────────────────────────── -->
+
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:launchMode="singleTop"
-            android:screenOrientation="portrait">
-            </activity>
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".QrLoginActivity"
@@ -50,7 +51,7 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
 
-        <activity 
+        <activity
             android:name=".OfflineMenuActivity"
             android:exported="false"
             android:screenOrientation="portrait"
@@ -65,7 +66,7 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
-        <activity 
+        <activity
             android:name=".LoginActivity"
             android:exported="false"
             android:screenOrientation="portrait"
@@ -88,11 +89,34 @@
             android:configChanges="orientation|screenSize" />
 
         <activity
+            android:name=".ErrorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:launchMode="singleTop" />
+
+        <activity
+            android:name=".TestProofActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <!-- ── PHASE 6: PASSPORT ACTIVITY ──────────────────────────────── -->
+        <!--
+            Changes from old:
+            ✅ exported="false"  — security fix (bahar se launch nahi hoga)
+            ✅ FLAG_SECURE already in code — screenshot disable
+            ✅ windowSoftInputMode added — keyboard overlap fix
+            ✅ NFC intent filter same rakha — touch nahi kiya
+        -->
+        <activity
             android:name=".PassportActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.NoActionBar">
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- NFC Tech Filter — ICAO 9303 IsoDep chip -->
             <intent-filter>
                 <action android:name="android.nfc.action.TECH_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -102,19 +126,9 @@
                 android:resource="@xml/nfc_tech_filter" />
         </activity>
 
-        <activity 
-            android:name=".ErrorActivity"
-            android:exported="false"
-            android:theme="@style/Theme.AppCompat.NoActionBar"
-            android:launchMode="singleTop" />
-
-            <activity
-            android:name=".TestProofActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-        <activity android:name=".AuthActivity"
+        <!-- ── LAUNCHER ─────────────────────────────────────────────────── -->
+        <activity
+            android:name=".AuthActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

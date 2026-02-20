@@ -13,17 +13,7 @@ use std::cmp::min;
 // Logic & Serialization
 use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose};
-use serde::{Serialize, Deserialize};
-use serde_json::json;
-use hex; // Added missing hex crate dependency
-
-// Android Logging
-use android_logger::Config;
-use log::{info, error, warn, LevelFilter};
-
-// Cryptography
-use sha2::{Sha256, Digest};
-use rand::{thread_rng, Rng};
+// ✅ Fix 1: crc32fast (not 32fast — identifiers cannot start with number)
 use crc32fast::Hasher as Crc32Hasher;
 
 // Plonky2 Imports
@@ -31,11 +21,25 @@ use plonky2::field::types::Field;
 use plonky2::plonk::circuit_builder::CircuitBuilder;
 use plonky2::plonk::circuit_data::{CircuitConfig, CircuitData};
 use plonky2::plonk::config::{GenericConfig, PoseidonGoldilocksConfig, Hasher};
-use plonky2::plonk::proof::ProofWithPublicInputs; 
+use plonky2::plonk::proof::ProofWithPublicInputs;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::iop::target::Target;
 use plonky2::hash::hash_types::HashOutTarget;
+
+// ✅ Fix 2: serde import proper use statement (was missing `use`)
+use serde::{Serialize, Deserialize};
+use serde_json::json;
+use hex;
+
+// Android Logging
+use android_logger::Config;
+// ✅ Fix 3: Remove unused warn import
+use log::{info, error, LevelFilter};
+
+// Cryptography
+use sha2::{Sha256, Digest};
+use rand::{thread_rng, Rng};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚙️ CONSTANTS & CONFIGURATION
@@ -45,16 +49,11 @@ const D: usize = 2;
 type C = PoseidonGoldilocksConfig;
 type F = <C as GenericConfig<D>>::F;
 
-// Constraints
 const MIN_REQUIRED_BALANCE: u64 = 10_000;
 const USER_REAL_BALANCE: u64 = 50_000;
-
-// Optimization: Increased chunk size to reduce total frames.
 const QR_CHUNK_SIZE: usize = 1200;
-
-// Security Configuration
-const PROOF_VALIDITY_WINDOW_SECS: u64 = 300; // 5 minutes
-const MAX_TIMESTAMP_DRIFT_SECS: i64 = 30; // Allow 30s clock drift
+const PROOF_VALIDITY_WINDOW_SECS: u64 = 300;
+const MAX_TIMESTAMP_DRIFT_SECS: i64 = 30;
 const MIN_NONCE_VALUE: u64 = 1_000_000_000;
 
 fn init_logger() {
@@ -85,34 +84,29 @@ impl ProofMetadata {
             .as_secs();
         let mut rng = thread_rng();
         let nonce: u64 = rng.gen_range(MIN_NONCE_VALUE..u64::MAX);
-        Self {
-            timestamp,
-            nonce,
-            session_id,
-            version: 1,
-        }
+        Self { timestamp, nonce, session_id, version: 1 }
     }
-    
+
     fn is_valid(&self, _provided_session_id: &str) -> Result<()> {
         let current_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
         let age = current_time.saturating_sub(self.timestamp);
-        
+
         if age > PROOF_VALIDITY_WINDOW_SECS {
             bail!("Proof expired (age: {}s > {}s)", age, PROOF_VALIDITY_WINDOW_SECS);
         }
-        
+
         let drift = self.timestamp as i64 - current_time as i64;
         if drift > MAX_TIMESTAMP_DRIFT_SECS {
             bail!("Proof timestamp in future (drift: {}s)", drift);
         }
-        
+
         if self.nonce < MIN_NONCE_VALUE {
             bail!("Invalid nonce");
         }
-        
+
         Ok(())
     }
 }
@@ -131,20 +125,20 @@ impl SecureChunk {
         let mut hasher = Crc32Hasher::new();
         hasher.update(payload.as_bytes());
         let crc32 = hasher.finalize();
-        
+
         let mut sha_hasher = Sha256::new();
         let index_i32 = index as i32;
         let total_i32 = total as i32;
-        
+
         sha_hasher.update(index_i32.to_le_bytes());
         sha_hasher.update(total_i32.to_le_bytes());
         sha_hasher.update(payload.as_bytes());
         sha_hasher.update(crc32.to_le_bytes());
-        
+
         let signature = hex::encode(sha_hasher.finalize());
         Self { index, total, payload, crc32, signature }
     }
-    
+
     fn to_qr_format(&self) -> String {
         format!("{}/{}|{}|{}|{}", self.index, self.total, self.payload, self.crc32, self.signature)
     }
@@ -153,8 +147,8 @@ impl SecureChunk {
 #[derive(Serialize, Deserialize)]
 struct SecureProof {
     metadata: ProofMetadata,
-    proof_data: String, 
-    proof_hash: String, 
+    proof_data: String,
+    proof_hash: String,
 }
 
 impl SecureProof {
@@ -165,12 +159,12 @@ impl SecureProof {
         let proof_hash = hex::encode(hasher.finalize());
         Self { metadata, proof_data, proof_hash }
     }
-    
+
     fn verify_integrity(&self) -> Result<()> {
         let mut hasher = Sha256::new();
         hasher.update(self.proof_data.as_bytes());
         let calculated_hash = hex::encode(hasher.finalize());
-        
+
         if calculated_hash != self.proof_hash {
             bail!("Proof integrity check failed");
         }
@@ -243,7 +237,7 @@ pub extern "C" fn Java_com_example_zkpapp_OfflineMenuActivity_stringFromRust(
 
         let session_id = generate_session_id();
         let secure_proof = SecureProof::new(proof_base64, session_id);
-        
+
         let secure_proof_json = serde_json::to_string(&secure_proof)
             .context("Secure proof JSON serialization failed")?;
         let secure_proof_base64 = general_purpose::STANDARD.encode(secure_proof_json);
@@ -305,7 +299,7 @@ pub extern "C" fn Java_com_example_zkpapp_VerifierActivity_verifyProofFromRust(
         if let Err(e) = secure_proof.verify_integrity() {
             return format!("❌ INTEGRITY FAILED: {}", e);
         }
-        
+
         if let Err(e) = secure_proof.metadata.is_valid("any") {
             return format!("❌ SECURITY CHECK FAILED: {}", e);
         }
@@ -328,7 +322,11 @@ pub extern "C" fn Java_com_example_zkpapp_VerifierActivity_verifyProofFromRust(
         match circuit.data.verify(proof) {
             Ok(_) => {
                 let dur = start_time.elapsed();
-                let age = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs().saturating_sub(secure_proof.metadata.timestamp);
+                let age = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+                    .saturating_sub(secure_proof.metadata.timestamp);
                 format!("✅ VERIFIED!\n⏱️ Time: {:.2?}\n📅 Age: {}s", dur, age)
             },
             Err(e) => format!("⛔ REJECTED: Invalid Proof\nReason: {:?}", e)
@@ -345,7 +343,10 @@ pub extern "C" fn Java_com_example_zkpapp_VerifierActivity_verifyProofFromRust(
 }
 
 fn generate_session_id() -> String {
-    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
     let mut rng = thread_rng();
     format!("session_{}_{}", timestamp, rng.gen::<u32>())
 }

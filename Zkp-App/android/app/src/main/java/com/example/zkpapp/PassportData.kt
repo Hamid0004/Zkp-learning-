@@ -3,64 +3,81 @@ package com.example.zkpapp
 import android.graphics.Bitmap
 import android.os.Parcelable
 import com.google.gson.Gson
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
+import java.security.MessageDigest
 
 @Parcelize
 data class PassportData(
-    val firstName: String,
-    val lastName: String,
-    val gender: String,
+    val firstName:      String,
+    val lastName:       String,
+    val gender:         String,
     val documentNumber: String,
-    val dateOfBirth: String,
-    val expiryDate: String,
-    val facePhoto: Bitmap?, // 🖼️ UI ke liye Photo
+    val dateOfBirth:    String,
+    val expiryDate:     String,
+    val nationality:    String = "PK",
+    val mrzLine:        String = "",   // ✅ Fix 3: Rust struct ke liye zaroori
 
-    // 🔐 Day 69: Raw Bytes for Data Integrity
-    // ZKP iska Hash nikaal kar check karega.
+    // ✅ Fix 5: Bitmap Parcel mein nahi jayega — memory safe
+    @IgnoredOnParcel
+    val facePhoto: Bitmap? = null,
+
+    // Raw bytes — Parcel mein jaenge (small size)
     val dg1Raw: ByteArray? = null,
-
-    // 🔐 NEW (Day 70): SOD Raw Bytes (The Signature)
     val sodRaw: ByteArray? = null
+
 ) : Parcelable {
 
-    // 🌉 BRIDGE: Kotlin -> Rust JSON Converter
-    fun toRustJson(): String {
-        
-        // 👇 DAY 73 STEP 2: SIMULATION HACK
-        // Hum "Test User" ke liye ek nakli lekin "Valid" SOD bana rahe hain.
-        // Is hash ko humne Rust se calculate karke yahan paste kiya hai.
-        val validHashPart = "574aaad2ca7350a062f8cce31e34696c2b3e777fa972527d193289552418019a"
-        val magicSod = "7705" + validHashPart + "aabbcc" // Magic SOD with Hash inside
+    companion object {
+        // ✅ Fix 4: Gson ek baar banao
+        private val gson = Gson()
+    }
 
-        // Decision: Real SOD use karein ya Magic SOD?
-        val finalSodHex = if (sodRaw != null && sodRaw.size > 10) {
-            // Agar asli scan hai (size bada hai), toh asli SOD bhejo
-            sodRaw.toHexString()
-        } else {
-            // Agar simulation hai (ya data missing hai), toh Magic SOD bhejo
-            magicSod 
+    // ── Bridge: Kotlin → Rust JSON ────────────────────────────────────────────
+    fun toRustJson(): String {
+
+        // ✅ Fix 1: Magic SOD hata diya
+        // PassportEngine.buildSimulatedSod() se sahi SOD aata hai
+        // Jo DG1 ka actual SHA256 embed karta hai — match guarantee
+        val finalSodHex = when {
+            sodRaw != null && sodRaw.size > 10 -> sodRaw.toHexString()
+            dg1Raw != null -> buildSodFromDg1(dg1Raw)  // fallback
+            else -> ""
         }
 
+        val finalDg1Hex = dg1Raw?.toHexString() ?: ""
+
+        // ✅ Fix 3: mrz_line add kiya — Rust struct match
         val rustPayload = mapOf(
-            "first_name" to firstName,
-            "last_name" to lastName,
+            "mode"            to "NFC_PASSPORT",
+            "first_name"      to firstName,
+            "last_name"       to lastName,
             "document_number" to documentNumber,
-            "date_of_birth" to dateOfBirth,
-            "expiry_date" to expiryDate,
-            
-            // 🧱 Raw Bytes (Converted to Hex String)
-            "dg1_hex" to (dg1Raw?.toHexString() ?: ""),
-            
-            // 👇 Updated: Ab hum Final Decision wala SOD bhej rahe hain
-            "sod_hex" to finalSodHex
+            "date_of_birth"   to dateOfBirth,
+            "nationality"     to nationality,
+            "mrz_line"        to mrzLine,
+            "dg1_hex"         to finalDg1Hex,
+            "sod_hex"         to finalSodHex,
+            "ds_cert_hex"     to null          // optional — Day 74
         )
 
-        // Gson library magic se Map ko JSON String bana degi
-        return Gson().toJson(rustPayload)
+        return gson.toJson(rustPayload)
     }
 
-    // 🛠️ HELPER: ByteArray -> Hex String ("0A1B2C")
-    private fun ByteArray.toHexString(): String {
-        return joinToString("") { "%02x".format(it) }
+    // ✅ Fix 1: Runtime pe DG1 se SOD banao (hardcoded hash nahi)
+    // PassportEngine.buildSimulatedSod() jaisa hi logic
+    private fun buildSodFromDg1(dg1: ByteArray): String {
+        val hash = MessageDigest.getInstance("SHA-256").digest(dg1)
+        val sodBytes = byteArrayOf(
+            0x77.toByte(),
+            (hash.size + 2).toByte(),
+            0x04.toByte(),
+            hash.size.toByte()
+        ) + hash
+        return sodBytes.toHexString()
     }
+
+    // Helper: ByteArray → Hex String
+    private fun ByteArray.toHexString(): String =
+        joinToString("") { "%02x".format(it) }
 }

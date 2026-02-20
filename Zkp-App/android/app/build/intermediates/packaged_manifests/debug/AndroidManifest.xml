@@ -21,9 +21,10 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- ✅ Phase 6 Fix: NFC required=false — NFC nahi hone pe bhi app chale (simulation mode) -->
     <uses-feature
         android:name="android.hardware.nfc"
-        android:required="true" />
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.camera"
         android:required="true" />
@@ -66,12 +67,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
+
+        <!-- ── UNTOUCHED ACTIVITIES ─────────────────────────────────────── -->
+
         <activity
             android:name="com.example.zkpapp.MainActivity"
             android:exported="false"
             android:launchMode="singleTop"
-            android:screenOrientation="portrait" >
-        </activity>
+            android:screenOrientation="portrait" />
         <activity
             android:name="com.example.zkpapp.QrLoginActivity"
             android:exported="false"
@@ -110,11 +113,33 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
         <activity
+            android:name="com.example.zkpapp.ErrorActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <activity
+            android:name="com.example.zkpapp.TestProofActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <!-- ── PHASE 6: PASSPORT ACTIVITY ──────────────────────────────── -->
+        <!--
+            Changes from old:
+            ✅ exported="false"  — security fix (bahar se launch nahi hoga)
+            ✅ FLAG_SECURE already in code — screenshot disable
+            ✅ windowSoftInputMode added — keyboard overlap fix
+            ✅ NFC intent filter same rakha — touch nahi kiya
+        -->
+        <activity
             android:name="com.example.zkpapp.PassportActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.NoActionBar" >
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:windowSoftInputMode="adjustResize" >
+
+            <!-- NFC Tech Filter — ICAO 9303 IsoDep chip -->
             <intent-filter>
                 <action android:name="android.nfc.action.TECH_DISCOVERED" />
 
@@ -125,16 +150,8 @@
                 android:name="android.nfc.action.TECH_DISCOVERED"
                 android:resource="@xml/nfc_tech_filter" />
         </activity>
-        <activity
-            android:name="com.example.zkpapp.ErrorActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.AppCompat.NoActionBar" />
-        <activity
-            android:name="com.example.zkpapp.TestProofActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <!-- ── LAUNCHER ─────────────────────────────────────────────────── -->
         <activity
             android:name="com.example.zkpapp.AuthActivity"
             android:exported="true" >

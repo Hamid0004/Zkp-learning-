@@ -42,7 +42,7 @@ object ZkAuthManager {
         context: Context,
         sessionId: String,
         onStatus: (String) -> Unit,
-        onSuccess: (ProofMetadata) -> Unit, 
+        onSuccess: (ProofMetadata) -> Unit,
         onError: (String) -> Unit,
     ) {
         if (running) return
@@ -62,7 +62,10 @@ object ZkAuthManager {
                 if (!IdentityStorage.hasIdentity()) {
                     throw Exception("⚠️ No Passport Data! Please Scan NFC First.")
                 }
+                // ✅ Fix: getSecret() String? return karta hai — !! se String banao
+                // hasIdentity() true hai toh null nahi hoga — safe hai
                 IdentityStorage.getSecret()
+                    ?: throw Exception("⚠️ Identity data missing. Please scan passport again.")
             }
             val domain = IdentityStorage.getDomain()
 
@@ -80,9 +83,9 @@ object ZkAuthManager {
                 is ZkAuthResult.Error -> {
                     Log.e("ZkAuth", "Proof Gen Failed: ${authResult.code}")
                     onError("❌ Proof Error: ${authResult.message}")
-                    return 
+                    return
                 }
-                
+
                 is ZkAuthResult.Success -> {
                     val proofData = authResult.result
                     val meta = proofData.metadata
@@ -102,7 +105,7 @@ object ZkAuthManager {
                     }
 
                     if (response.isSuccessful) {
-                        onSuccess(meta) 
+                        onSuccess(meta)
                     } else {
                         onError(mapError(response.code()))
                     }
