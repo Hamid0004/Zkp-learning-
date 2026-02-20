@@ -75,17 +75,29 @@ class AuthActivity : AppCompatActivity() {
                                 val decryptedBytes = unlockedCipher?.doFinal(encryptedBytes)
                                 val message = String(decryptedBytes!!, Charset.defaultCharset())
                                 
-                                tvStatus.text = "Decrypted: $message ✅"
-                                Toast.makeText(this, "Success!", Toast.LENGTH_SHORT).show()
+                                // =========================================================
+                                // 🟢 DAY 89: RUST ENGINE BRIDGE INTEGRATION 
+                                // =========================================================
+                                tvStatus.text = "Decrypted. Handing over to Rust Engine... 🦀"
                                 
-                                // Delay karke Main Activity par jao
+                                // Send the decrypted secret directly to Rust!
+                                val proofBytes = SecureVaultJni.generateSecureIdentityProof(message)
+                                val proofResult = String(proofBytes, Charsets.UTF_8)
+
+                                tvStatus.text = "Rust Output: $proofResult ✅"
+                                Toast.makeText(this@AuthActivity, "ZKP Engine Connected!", Toast.LENGTH_SHORT).show()
+                                
+                                // Main Activity par jump abhi ke liye hide kar diya hai 
+                                // taaki Rust ka result screen par clearly dikhe.
+                                /*
                                 btnLogin.postDelayed({
-                                    startActivity(Intent(this, MainActivity::class.java))
+                                    startActivity(Intent(this@AuthActivity, MainActivity::class.java))
                                     finish()
                                 }, 1500)
+                                */
                                 
                             } catch (e: Exception) {
-                                tvStatus.text = "Decryption Failed: ${e.message}"
+                                tvStatus.text = "Decryption/Rust Failed: ${e.message}"
                             }
                         },
                         onError = { tvStatus.text = "Auth Error: $it" }
@@ -111,7 +123,7 @@ class AuthActivity : AppCompatActivity() {
 
                                 tvStatus.text = "Data Encrypted & Saved 🛡️"
                                 btnLogin.text = "Unlock Vault"
-                                Toast.makeText(this, "Saved Securely!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this@AuthActivity, "Saved Securely!", Toast.LENGTH_SHORT).show()
                                 
                             } catch (e: Exception) {
                                 tvStatus.text = "Encryption Failed: ${e.message}"

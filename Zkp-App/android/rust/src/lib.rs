@@ -1,6 +1,7 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JString, JObject, JValue};
-use jni::sys::{jstring, jobject};
+// 🟢 NEW: Added jbyteArray to the imports safely
+use jni::sys::{jstring, jobject, jbyteArray}; 
 use android_logger::Config;
 use log::{LevelFilter, info};
 
@@ -16,6 +17,8 @@ pub mod offline_identity;
 pub mod passport_security;
 pub mod zk_auth;
 pub mod proof_bench;   // Test Proof benchmark module
+// 🟢 NEW: Day 89 Secure Vault module declaration
+pub mod secure_vault;  
 
 // =========================================================
 // 🦁 JNI EXPORTS
@@ -124,4 +127,31 @@ fn build_result(
     )?;
 
     Ok(*obj)
+}
+
+// =========================================================
+// 🟢 DAY 89: SECURE IDENTITY PROOF BRIDGE (CLEAN SEPARATION)
+// =========================================================
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_zkpapp_SecureVaultJni_generateSecureIdentityProof<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    unlocked_seed: JString<'local>,
+) -> jbyteArray { // 👈 FIX 1: Removed <'local> from jbyteArray
+    
+    init_logger(); 
+    
+    let seed_str: String = env
+        .get_string(&unlocked_seed)
+        .expect("JNI Panic: Failed to extract secure seed from Android!")
+        .into();
+
+    let output_bytes = secure_vault::process_secure_seed(seed_str);
+
+    let byte_array = env.byte_array_from_slice(&output_bytes)
+        .expect("JNI Panic: Failed to create output byte array");
+
+    byte_array.into_raw() // 👈 FIX 2: Converted safe wrapper to raw C-pointer
+
 }
