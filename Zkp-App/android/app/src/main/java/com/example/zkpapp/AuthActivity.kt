@@ -89,12 +89,11 @@ class AuthActivity : AppCompatActivity() {
                                 
                                 // Main Activity par jump abhi ke liye hide kar diya hai 
                                 // taaki Rust ka result screen par clearly dikhe.
-                                /*
                                 btnLogin.postDelayed({
                                     startActivity(Intent(this@AuthActivity, MainActivity::class.java))
                                     finish()
                                 }, 1500)
-                                */
+                                
                                 
                             } catch (e: Exception) {
                                 tvStatus.text = "Decryption/Rust Failed: ${e.message}"
