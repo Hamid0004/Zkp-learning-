@@ -349,7 +349,7 @@ fn simulate_rsa_verification(hash: &[u8]) -> &'static str {
 
 /// Real NFC passport proof
 #[no_mangle]
-pub extern "system" fn Java_com_example_zkpapp_PassportActivity_generateProof(
+pub extern "system" fn Java_com_example_zkpapp_SecurityGate_generateProof(
     mut env: JNIEnv,
     _class: JClass,
     json_payload: JString,
@@ -361,7 +361,7 @@ pub extern "system" fn Java_com_example_zkpapp_PassportActivity_generateProof(
 /// ✅ Simulation mode — NFC nahi hone pe
 /// Kotlin se: ZkpJni.generateSimulatedPassportProof()
 #[no_mangle]
-pub extern "system" fn Java_com_example_zkpapp_PassportActivity_generateSimulatedProof(
+pub extern "system" fn Java_com_example_zkpapp_SecurityGate_generateSimulatedProof(
     mut env: JNIEnv,
     _class: JClass,
     _unused: JString,
