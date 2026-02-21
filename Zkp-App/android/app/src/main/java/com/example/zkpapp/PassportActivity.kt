@@ -307,6 +307,11 @@ class PassportActivity : AppCompatActivity() {
             layoutParams = FrameLayout.LayoutParams(MATCH, WRAP)
         }
 
+        // ✅ Fix: progressBar pehle initialize karo
+        // buildButtons() ke andar btnSimulate click → startEngine() → progressBar use karta hai
+        // Agar progressBar pehle nahi bana toh UninitializedPropertyAccessException crash
+        progressBar = ProgressBar(this).apply { visibility = View.GONE }
+
         container.addView(buildHeader())
         container.addView(buildStepBar())
         container.addView(buildStatusBanner())
@@ -316,6 +321,7 @@ class PassportActivity : AppCompatActivity() {
         container.addView(buildResultCard(isIntegrity = true))
         container.addView(buildSectionLabel("CRYPTO REPORT"))
         container.addView(buildResultCard(isIntegrity = false))
+        container.addView(progressBar)
         container.addView(buildButtons())
         container.addView(spacer(32))
 
