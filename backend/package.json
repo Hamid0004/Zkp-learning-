@@ -1,17 +1,29 @@
 {
-  "name": "backend",
+  "name": "zkauth-relay",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "zkAuth Phase 7 Relay Server - Universal Login Backend",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "zkauth",
+    "zero-knowledge",
+    "authentication",
+    "relay",
+    "zkp",
+    "plonky2"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "dependencies": {
-    "body-parser": "^2.2.2",
-    "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
   }
 }
