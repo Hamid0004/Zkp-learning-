@@ -4,15 +4,16 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Base64
-import android.util.Log
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt
 import com.example.zkpapp.security.BiometricManager
 import com.example.zkpapp.security.KeyStoreManager
 import java.nio.charset.Charset
+import java.security.SecureRandom
 
 class AuthActivity : AppCompatActivity() {
 
@@ -21,6 +22,20 @@ class AuthActivity : AppCompatActivity() {
     private val PREFS_NAME = "secure_prefs"
     private val KEY_ENCRYPTED_DATA = "data"
     private val KEY_IV = "iv"
+
+    // 🛡️ Bip39 Mock Wordlist (FYP ke liye choti list, production mein 2048 words hote hain)
+    private val wordList = listOf(
+        "apple", "brave", "ocean", "logic", "tiger", "flame", "globe", "novel",
+        "pilot", "quest", "radar", "solar", "token", "urban", "vital", "wired",
+        "yacht", "zebra", "alpha", "chaos", "delta", "echo", "forge", "ghost",
+        "heavy", "ivory", "juice", "karma", "lemon", "magic", "ninja", "orbit"
+    )
+
+    // Helper: Generate 12 Random Words securely
+    private fun generate12Words(): String {
+        val secureRandom = SecureRandom()
+        return (1..12).joinToString(" ") { wordList[secureRandom.nextInt(wordList.size)] }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,7 +47,6 @@ class AuthActivity : AppCompatActivity() {
         biometricManager = BiometricManager(this)
         keyStoreManager = KeyStoreManager()
 
-        // 1. Initial Checks
         if (!biometricManager.canAuthenticate()) {
             tvStatus.text = "Error: Hardware not secure"
             btnLogin.isEnabled = false
@@ -46,26 +60,26 @@ class AuthActivity : AppCompatActivity() {
             return
         }
 
-        // 2. Determine Mode (Encrypt New vs Decrypt Existing)
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val existingData = prefs.getString(KEY_ENCRYPTED_DATA, null)
         val existingIv = prefs.getString(KEY_IV, null)
 
         if (existingData != null && existingIv != null) {
-            tvStatus.text = "Locked Data Found 🔒\nAuthenticate to Decrypt"
+            tvStatus.text = "Locked Vault Found 🔒\nAuthenticate to Decrypt"
             btnLogin.text = "Unlock Vault"
         } else {
-            tvStatus.text = "No Data Found.\nAuthenticate to Encrypt 'Hello ZK'"
+            tvStatus.text = "No Identity Found.\nAuthenticate to Create Recovery Seed"
             btnLogin.text = "Create Secret"
         }
 
-        // 3. Button Action
         btnLogin.setOnClickListener {
             try {
                 if (existingData != null && existingIv != null) {
-                    // --- DECRYPTION FLOW ---
+                    // ==========================================
+                    // 🔓 DECRYPTION FLOW (Login)
+                    // ==========================================
                     val ivBytes = Base64.decode(existingIv, Base64.DEFAULT)
-                    val cipher = keyStoreManager.getCipherForDecryption(ivBytes) // Locked Cipher
+                    val cipher = keyStoreManager.getCipherForDecryption(ivBytes)
                     
                     biometricManager.authenticateUser(this, BiometricPrompt.CryptoObject(cipher),
                         onSuccess = { result ->
@@ -73,27 +87,23 @@ class AuthActivity : AppCompatActivity() {
                                 val unlockedCipher = result.cryptoObject?.cipher
                                 val encryptedBytes = Base64.decode(existingData, Base64.DEFAULT)
                                 val decryptedBytes = unlockedCipher?.doFinal(encryptedBytes)
-                                val message = String(decryptedBytes!!, Charset.defaultCharset())
+                                val recoverySeed = String(decryptedBytes!!, Charset.defaultCharset())
                                 
-                                // =========================================================
-                                // 🟢 DAY 89: RUST ENGINE BRIDGE INTEGRATION 
-                                // =========================================================
-                                tvStatus.text = "Decrypted. Handing over to Rust Engine... 🦀"
+                                tvStatus.text = "Seed Decrypted! Handing to Rust... 🦀"
                                 
-                                // Send the decrypted secret directly to Rust!
-                                val proofBytes = SecureVaultJni.generateSecureIdentityProof(message)
+                                // Send the 12-words to Rust HKDF & Merkle Engine
+                                val proofBytes = SecureVaultJni.generateSecureIdentityProof(recoverySeed)
                                 val proofResult = String(proofBytes, Charsets.UTF_8)
 
-                                tvStatus.text = "Rust Output: $proofResult ✅"
-                                Toast.makeText(this@AuthActivity, "ZKP Engine Connected!", Toast.LENGTH_SHORT).show()
+                                tvStatus.text = "Rust Output: $proofResult"
+                                Toast.makeText(this@AuthActivity, "Identity Verified!", Toast.LENGTH_SHORT).show()
                                 
-                                // Main Activity par jump abhi ke liye hide kar diya hai 
-                                // taaki Rust ka result screen par clearly dikhe.
+                                /* Dashboard par jump (Currently disabled for testing)
                                 btnLogin.postDelayed({
                                     startActivity(Intent(this@AuthActivity, MainActivity::class.java))
                                     finish()
                                 }, 1500)
-                                
+                                */
                                 
                             } catch (e: Exception) {
                                 tvStatus.text = "Decryption/Rust Failed: ${e.message}"
@@ -103,26 +113,38 @@ class AuthActivity : AppCompatActivity() {
                     )
 
                 } else {
-                    // --- ENCRYPTION FLOW ---
-                    val cipher = keyStoreManager.getCipherForEncryption() // Locked Cipher
+                    // ==========================================
+                    // 🔐 ENCRYPTION FLOW (New Account Setup)
+                    // ==========================================
+                    val cipher = keyStoreManager.getCipherForEncryption()
                     
                     biometricManager.authenticateUser(this, BiometricPrompt.CryptoObject(cipher),
                         onSuccess = { result ->
                             try {
                                 val unlockedCipher = result.cryptoObject?.cipher
-                                val secretMessage = "Hello ZK World! (Day 88)"
+                                
+                                // 🟢 NEW: Generate 12-Word Recovery Phrase
+                                val secretMessage = generate12Words()
                                 val encryptedBytes = unlockedCipher?.doFinal(secretMessage.toByteArray())
                                 val ivBytes = unlockedCipher?.iv
 
-                                // Save to Prefs
                                 prefs.edit()
                                     .putString(KEY_ENCRYPTED_DATA, Base64.encodeToString(encryptedBytes, Base64.DEFAULT))
                                     .putString(KEY_IV, Base64.encodeToString(ivBytes, Base64.DEFAULT))
                                     .apply()
 
-                                tvStatus.text = "Data Encrypted & Saved 🛡️"
+                                tvStatus.text = "Vault Secured 🛡️"
                                 btnLogin.text = "Unlock Vault"
-                                Toast.makeText(this@AuthActivity, "Saved Securely!", Toast.LENGTH_SHORT).show()
+
+                                // 🚨 NEW: Show Alert Dialog to user to write down the seed
+                                runOnUiThread {
+                                    AlertDialog.Builder(this@AuthActivity)
+                                        .setTitle("🚨 SECRET RECOVERY PHRASE")
+                                        .setMessage("Write these 12 words down on paper. If you uninstall the app, THIS is the only way to recover your Identity!\n\n$secretMessage")
+                                        .setPositiveButton("I WROTE IT DOWN", null)
+                                        .setCancelable(false) // User dismiss nahi kar sakta jab tak button na dabaye
+                                        .show()
+                                }
                                 
                             } catch (e: Exception) {
                                 tvStatus.text = "Encryption Failed: ${e.message}"
