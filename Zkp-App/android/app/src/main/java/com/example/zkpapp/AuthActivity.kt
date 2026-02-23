@@ -29,7 +29,6 @@ class AuthActivity : AppCompatActivity() {
     private lateinit var btnRestore: Button
     private lateinit var tvStatus: TextView
 
-    // Bip39 Mock Wordlist
     private val wordList = listOf(
         "apple", "brave", "ocean", "logic", "tiger", "flame", "globe", "novel",
         "pilot", "quest", "radar", "solar", "token", "urban", "vital", "wired",
@@ -66,20 +65,17 @@ class AuthActivity : AppCompatActivity() {
         
         try { keyStoreManager.generateMasterKey() } catch (e: Exception) { return }
 
-        // Initial UI Setup
         refreshUIState()
 
-        // 🟢 MAIN BUTTON LOGIC
         btnLogin.setOnClickListener {
             if (isVaultLocked()) {
-                unlockVault() // Decrypt existing
+                unlockVault()
             } else {
                 val secretMessage = generate12Words()
-                encryptAndSaveSeed(secretMessage, false) // Create new
+                encryptAndSaveSeed(secretMessage, false)
             }
         }
 
-        // 🔵 RESTORE BUTTON LOGIC
         btnRestore.setOnClickListener {
             showRestoreDialog()
         }
@@ -89,11 +85,11 @@ class AuthActivity : AppCompatActivity() {
         if (isVaultLocked()) {
             tvStatus.text = "Locked Vault Found 🔒\nAuthenticate to Decrypt"
             btnLogin.text = "Unlock Vault"
-            btnRestore.visibility = View.GONE // Hide restore button if vault exists
+            btnRestore.visibility = View.GONE
         } else {
             tvStatus.text = "No Identity Found.\nCreate or Restore Recovery Seed"
             btnLogin.text = "Create Secret"
-            btnRestore.visibility = View.VISIBLE // Show restore button for new devices
+            btnRestore.visibility = View.VISIBLE
         }
     }
 
@@ -106,23 +102,36 @@ class AuthActivity : AppCompatActivity() {
             
             biometricManager.authenticateUser(this, BiometricPrompt.CryptoObject(cipher),
                 onSuccess = { result ->
-                    val unlockedCipher = result.cryptoObject?.cipher
-                    val encryptedBytes = Base64.decode(prefs.getString(KEY_ENCRYPTED_DATA, ""), Base64.DEFAULT)
-                    val decryptedBytes = unlockedCipher?.doFinal(encryptedBytes)
-                    val recoverySeed = String(decryptedBytes!!, Charset.defaultCharset())
-                    
-                    val proofBytes = SecureVaultJni.generateSecureIdentityProof(recoverySeed)
-                    val proofResult = String(proofBytes, Charsets.UTF_8)
-                    
-                    tvStatus.text = "Rust Output: $proofResult"
-                    Toast.makeText(this, "Identity Verified!", Toast.LENGTH_SHORT).show()
+                    try {
+                        val unlockedCipher = result.cryptoObject?.cipher
+                        val encryptedBytes = Base64.decode(prefs.getString(KEY_ENCRYPTED_DATA, ""), Base64.DEFAULT)
+                        val decryptedBytes = unlockedCipher?.doFinal(encryptedBytes)
+                        val recoverySeed = String(decryptedBytes!!, Charset.defaultCharset())
+                        
+                        val proofBytes = SecureVaultJni.generateSecureIdentityProof(recoverySeed)
+                        val proofResult = String(proofBytes, Charsets.UTF_8)
+                        
+                        // Main Thread par UI update aur jump
+                        runOnUiThread {
+                            tvStatus.text = "Rust Output: $proofResult"
+                            Toast.makeText(this@AuthActivity, "Identity Verified!", Toast.LENGTH_SHORT).show()
+
+                            // 🚀 NO DELAY - DIRECT JUMP
+                            val intent = Intent(this@AuthActivity, MainActivity::class.java)
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            startActivity(intent)
+                            finish()
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread { tvStatus.text = "Jump Error: ${e.message}" }
+                    }
                 },
                 onError = { tvStatus.text = "Auth Error: $it" }
             )
         } catch (e: Exception) { tvStatus.text = "Decryption Error: ${e.message}" }
     }
 
-    // 🔐 ENCRYPTION FLOW (Handles both Create New & Restore)
+    // 🔐 ENCRYPTION FLOW
     private fun encryptAndSaveSeed(seed: String, isRestore: Boolean) {
         try {
             val cipher = keyStoreManager.getCipherForEncryption()
@@ -142,16 +151,15 @@ class AuthActivity : AppCompatActivity() {
                             AlertDialog.Builder(this)
                                 .setTitle("🚨 SECRET RECOVERY PHRASE")
                                 .setMessage("Write these 12 words down...\n\n$seed")
-                                .setPositiveButton("I WROTE IT DOWN") { _, _ ->
-                                    // FIX 1: App Stuck Issue Fixed (Reloads activity to update UI)
-                                    recreate() 
-                                }
+                                .setPositiveButton("I WROTE IT DOWN") { _, _ -> recreate() }
                                 .setCancelable(false)
                                 .show()
                         }
                     } else {
-                        Toast.makeText(this, "Identity Restored Successfully!", Toast.LENGTH_LONG).show()
-                        recreate() // Reload to show Unlock state
+                        runOnUiThread {
+                            Toast.makeText(this, "Identity Restored Successfully!", Toast.LENGTH_LONG).show()
+                            recreate() 
+                        }
                     }
                 },
                 onError = { tvStatus.text = "Auth Error: $it" }
@@ -159,7 +167,6 @@ class AuthActivity : AppCompatActivity() {
         } catch (e: Exception) { tvStatus.text = "Encryption Error: ${e.message}" }
     }
 
-    // 📥 INPUT DIALOG FOR RESTORE
     private fun showRestoreDialog() {
         val input = EditText(this)
         input.hint = "type your 12 words here separated by spaces"
@@ -170,7 +177,6 @@ class AuthActivity : AppCompatActivity() {
             .setView(input)
             .setPositiveButton("Restore") { _, _ ->
                 val typedSeed = input.text.toString().trim()
-                // Simple validation check (should be exactly 12 words)
                 if (typedSeed.split("\\s+".toRegex()).size == 12) {
                     encryptAndSaveSeed(typedSeed, isRestore = true)
                 } else {
