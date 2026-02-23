@@ -45,6 +45,7 @@ id btnFlash
 id btnGotoScanner
 id btnLogin
 id btnOfflineIdentity
+id btnRestore
 id btnRunTest
 id btnScanPassport
 id btnScanQrLogin

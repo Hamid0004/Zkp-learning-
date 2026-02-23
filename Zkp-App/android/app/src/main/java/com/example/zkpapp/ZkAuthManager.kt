@@ -2,7 +2,7 @@ package com.example.zkpapp.auth
 
 import android.content.Context
 import android.util.Log
-import com.example.zkpapp.* // Import ZkAuth, ZkAuthResult, ProofMetadata, etc.
+import com.example.zkpapp.*
 import com.example.zkpapp.models.ProofRequest
 import com.example.zkpapp.network.RelayApi
 import kotlinx.coroutines.Dispatchers
@@ -15,9 +15,11 @@ import java.util.concurrent.TimeUnit
 
 object ZkAuthManager {
 
-    // 🦁 NOTE: Ensure this URL is live (Github Codespaces URL changes often)
-    private const val BASE_URL =
-        "https://crispy-dollop-97xj7vjgx4ph9pgg-3000.app.github.dev/"
+    // ✅ UPDATED: Railway Production URL (Always Online)
+    private const val BASE_URL = "https://zkp-identity-production.up.railway.app/"
+
+    // 🔄 FALLBACK: GitHub Codespaces URL (if Railway fails during development)
+    private const val CODESPACES_URL = "https://crispy-dollop-97xj7vjgx4ph9pgg-3000.app.github.dev/"
 
     @Volatile
     private var running = false
@@ -62,8 +64,6 @@ object ZkAuthManager {
                 if (!IdentityStorage.hasIdentity()) {
                     throw Exception("⚠️ No Passport Data! Please Scan NFC First.")
                 }
-                // ✅ Fix: getSecret() String? return karta hai — !! se String banao
-                // hasIdentity() true hai toh null nahi hoga — safe hai
                 IdentityStorage.getSecret()
                     ?: throw Exception("⚠️ Identity data missing. Please scan passport again.")
             }
@@ -94,12 +94,20 @@ object ZkAuthManager {
 
                     // 5. Upload to Server
                     val response = withContext(Dispatchers.IO) {
-                        // 🦁 FIX IS HERE: We now pass 'nullifier' along with session_id and proof
                         api.uploadProof(
                             ProofRequest(
                                 session_id = sessionId,
-                                nullifier = proofData.nullifier, // ✅ Sending ID to Server
-                                proof = proofData.proof
+                                nullifier = proofData.nullifier,
+                                proof = proofData.proof,
+                                metadata = mapOf(
+                                    "generation_time_ms" to meta.generation_time_ms.toString(),
+                                    "proof_size_bytes" to meta.proof_size_bytes.toString(),
+                                    "circuit_version" to meta.circuit_version,
+                                    "circuit_hash" to meta.circuit_hash,
+                                    "num_gates" to meta.num_gates.toString(),
+                                    "degree_bits" to meta.degree_bits.toString(),
+                                    "proof_id" to meta.proof_id.toString()
+                                )
                             )
                         )
                     }

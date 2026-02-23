@@ -20,11 +20,19 @@
         android:layout_height="60dp"
         android:text="Unlock with Biometrics"/>
 
+    <Button
+        android:id="@+id/btnRestore"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Restore Identity"
+        android:layout_marginTop="16dp" />
+
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
-        android:text="Secure Environment Ready"/>
+        android:text="Secure Environment Ready"
+        android:textAlignment="center"/>
 
 </LinearLayout>
