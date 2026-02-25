@@ -28,6 +28,10 @@
         "source": "com.example.zkpapp-main-42:/drawable/bg_card_dark.xml"
     },
     {
+        "merged": "com.example.zkpapp-merged_res-40:/layout_activity_lock.xml.flat",
+        "source": "com.example.zkpapp-main-42:/layout/activity_lock.xml"
+    },
+    {
         "merged": "com.example.zkpapp-merged_res-40:/drawable_btn_cyber_green.xml.flat",
         "source": "com.example.zkpapp-main-42:/drawable/btn_cyber_green.xml"
     },

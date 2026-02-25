@@ -21,7 +21,6 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
-    <!-- ✅ Phase 6 Fix: NFC required=false — NFC nahi hone pe bhi app chale (simulation mode) -->
     <uses-feature
         android:name="android.hardware.nfc"
         android:required="false" />
@@ -67,9 +66,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
-
-        <!-- ── UNTOUCHED ACTIVITIES ─────────────────────────────────────── -->
-
         <activity
             android:name="com.example.zkpapp.MainActivity"
             android:exported="false"
@@ -122,15 +118,11 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
-
-        <!-- ── PHASE 6: PASSPORT ACTIVITY ──────────────────────────────── -->
-        <!--
-            Changes from old:
-            ✅ exported="false"  — security fix (bahar se launch nahi hoga)
-            ✅ FLAG_SECURE already in code — screenshot disable
-            ✅ windowSoftInputMode added — keyboard overlap fix
-            ✅ NFC intent filter same rakha — touch nahi kiya
-        -->
+        <activity
+            android:name="com.example.zkpapp.LockActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
         <activity
             android:name="com.example.zkpapp.PassportActivity"
             android:exported="false"
@@ -138,8 +130,6 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:windowSoftInputMode="adjustResize" >
-
-            <!-- NFC Tech Filter — ICAO 9303 IsoDep chip -->
             <intent-filter>
                 <action android:name="android.nfc.action.TECH_DISCOVERED" />
 
@@ -150,8 +140,6 @@
                 android:name="android.nfc.action.TECH_DISCOVERED"
                 android:resource="@xml/nfc_tech_filter" />
         </activity>
-
-        <!-- ── LAUNCHER ─────────────────────────────────────────────────── -->
         <activity
             android:name="com.example.zkpapp.AuthActivity"
             android:exported="true" >
@@ -170,6 +158,22 @@
                 android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
                 android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
         </service>
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="com.example.zkpapp.androidx-startup"
+            android:exported="false" >
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+                android:value="androidx.startup" />
+        </provider>
+
         <service
             android:name="com.google.mlkit.common.internal.MlKitComponentDiscoveryService"
             android:directBootAware="true"
@@ -202,21 +206,6 @@
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
-
-        <provider
-            android:name="androidx.startup.InitializationProvider"
-            android:authorities="com.example.zkpapp.androidx-startup"
-            android:exported="false" >
-            <meta-data
-                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-                android:value="androidx.startup" />
-            <meta-data
-                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-                android:value="androidx.startup" />
-            <meta-data
-                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-                android:value="androidx.startup" />
-        </provider>
 
         <receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"

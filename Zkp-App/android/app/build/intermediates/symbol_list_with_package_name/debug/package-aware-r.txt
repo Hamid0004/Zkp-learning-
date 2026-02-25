@@ -3286,6 +3286,7 @@ id bounceEnd
 id bounceStart
 id btnBack
 id btnFlash
+id btnGlobalUnlock
 id btnGotoScanner
 id btnLogin
 id btnOfflineIdentity
@@ -3866,6 +3867,7 @@ layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_auth
 layout activity_camera
+layout activity_lock
 layout activity_login
 layout activity_main
 layout activity_offline_menu

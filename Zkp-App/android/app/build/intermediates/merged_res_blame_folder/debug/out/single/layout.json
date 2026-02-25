@@ -30,5 +30,9 @@
     {
         "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_test_proof.xml",
         "source": "com.example.zkpapp-main-42:/layout/activity_test_proof.xml"
+    },
+    {
+        "merged": "com.example.zkpapp-mergeDebugResources-39:/layout/activity_lock.xml",
+        "source": "com.example.zkpapp-main-42:/layout/activity_lock.xml"
     }
 ]

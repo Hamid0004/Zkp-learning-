@@ -14,7 +14,6 @@
         android:maxSdkVersion="28"
         tools:ignore="ScopedStorage" />
 
-    <!-- ✅ Phase 6 Fix: NFC required=false — NFC nahi hone pe bhi app chale (simulation mode) -->
     <uses-feature
         android:name="android.hardware.nfc"
         android:required="false" />
@@ -36,8 +35,6 @@
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         tools:ignore="GoogleAppIndexingWarning">
-
-        <!-- ── UNTOUCHED ACTIVITIES ─────────────────────────────────────── -->
 
         <activity
             android:name=".MainActivity"
@@ -100,14 +97,12 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
 
-        <!-- ── PHASE 6: PASSPORT ACTIVITY ──────────────────────────────── -->
-        <!--
-            Changes from old:
-            ✅ exported="false"  — security fix (bahar se launch nahi hoga)
-            ✅ FLAG_SECURE already in code — screenshot disable
-            ✅ windowSoftInputMode added — keyboard overlap fix
-            ✅ NFC intent filter same rakha — touch nahi kiya
-        -->
+        <activity
+            android:name=".LockActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
         <activity
             android:name=".PassportActivity"
             android:exported="false"
@@ -116,7 +111,6 @@
             android:theme="@style/Theme.AppCompat.NoActionBar"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- NFC Tech Filter — ICAO 9303 IsoDep chip -->
             <intent-filter>
                 <action android:name="android.nfc.action.TECH_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -126,7 +120,6 @@
                 android:resource="@xml/nfc_tech_filter" />
         </activity>
 
-        <!-- ── LAUNCHER ─────────────────────────────────────────────────── -->
         <activity
             android:name=".AuthActivity"
             android:exported="true">
