@@ -102,4 +102,5 @@ dependencies {
 
     //Phase 8 - Biometric Authentication
     implementation 'androidx.biometric:biometric:1.2.0-alpha04'
+    implementation("androidx.lifecycle:lifecycle-process:2.6.2")
 }
