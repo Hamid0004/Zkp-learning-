@@ -1,6 +1,7 @@
 use log::{info, warn};
 use hkdf::Hkdf;
-use sha2::{Sha256, Digest}; // 👈 FIX: 'Digest' import karna zaroori hai hashing ke liye
+use sha2::{Sha256, Digest};
+use zeroize::{Zeroize, Zeroizing}; // 🌊 MARIANA TRENCH: Secure Memory Wiping
 
 // 🧂 Domain Separation Salt (Security Best Practice)
 const ZKP_APP_SALT: &[u8] = b"Mariana_Trench_ZKP_Vault_Salt_v1";
@@ -8,34 +9,42 @@ const ZKP_APP_SALT: &[u8] = b"Mariana_Trench_ZKP_Vault_Salt_v1";
 // =========================================================
 // 🌳 DAY 88.5 HELPER: LEAF HASH GENERATOR
 // =========================================================
-// Yeh function Master Key aur ID data ko mix karke ek secure hash banata hai
-fn create_leaf_hash(master_key: &[u8], data: &str) -> Vec<u8> {
+// 🛡️ UPGRADE: 'data' ab &str ki jagah &[u8] (Byte Array) lega
+fn create_leaf_hash(master_key: &[u8], data: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(master_key); // Secure salt from HKDF
-    hasher.update(data.as_bytes()); // Actual data (e.g., "Age: 22")
+    hasher.update(data); // Actual data (Raw Bytes)
     hasher.finalize().to_vec()
 }
 
-pub fn process_secure_seed(seed_str: String) -> Vec<u8> {
+// 🌊 MARIANA TRENCH UPGRADE: String ki jagah 'mut Vec<u8>' taaki isko mutate (zero) kar sakein
+pub fn process_secure_seed(mut seed_bytes: Vec<u8>) -> Vec<u8> {
     
-    // 1. Security Check & Logging
-    let masked_seed = if seed_str.len() > 4 {
-        format!("{}...[REDACTED]", &seed_str[0..4])
+    // 1. Security Check & Logging (Safe Hex Printing)
+    let masked_seed = if seed_bytes.len() > 4 {
+        format!("{:02x}{:02x}{:02x}{:02x}...[REDACTED]", seed_bytes[0], seed_bytes[1], seed_bytes[2], seed_bytes[3])
     } else {
         "[REDACTED]".to_string()
     };
     
-    info!("🦀 [SECURE VAULT]: Received Raw Seed from Hardware: {}", masked_seed);
+    info!("🦀 [SECURE VAULT]: Received Raw Seed Bytes: {}", masked_seed);
     info!("⛏️ [KDF ENGINE]: Starting Mariana Trench Mining (HKDF-SHA256)...");
 
     // =========================================================
     // 🟢 DAY 87.5: HKDF KEY DERIVATION (THE GRINDER)
     // =========================================================
     
-    let hkdf = Hkdf::<Sha256>::new(Some(ZKP_APP_SALT), seed_str.as_bytes());
-    let mut master_zkp_key = [0u8; 32];
+    let hkdf = Hkdf::<Sha256>::new(Some(ZKP_APP_SALT), &seed_bytes);
     
-    let expand_result = hkdf.expand(b"Plonky2_Circuit_Master_Key", &mut master_zkp_key);
+    // 🔥 THE KILL SWITCH 1: HKDF ne seed use kar liya? Fauran RAM se Wipe kar do!
+    seed_bytes.zeroize(); 
+    info!("🧹 [MEMORY GUARD]: Raw Seed wiped from RAM successfully.");
+
+    // 🔥 THE KILL SWITCH 2: Master key ko 'Zeroizing' mein wrap kiya. 
+    // Jaise hi yeh function khatam hoga, yeh RAM mein automatically 0x00 ho jayegi!
+    let mut master_zkp_key = Zeroizing::new([0u8; 32]);
+    
+    let expand_result = hkdf.expand(b"Plonky2_Circuit_Master_Key", master_zkp_key.as_mut());
     
     if expand_result.is_err() {
         warn!("❌ [KDF ENGINE]: Failed to mine the master key!");
@@ -50,15 +59,16 @@ pub fn process_secure_seed(seed_str: String) -> Vec<u8> {
     info!("🌳 [MERKLE ENGINE]: Building Identity Tree...");
 
     // 1. Mock Identity Data (Real app mein yeh kal ko Android UI/Database se aayega)
-    let id_name = "Name: Noman";
-    let id_age = "Age: 22";
-    let id_nat = "Nationality: PK";
+    // 🛡️ UPGRADE: Data ko directly bytes (b"...") mein convert kar diya hai
+    let id_name = b"Name: Noman";
+    let id_age  = b"Age: 22";
+    let id_nat  = b"Nationality: PK";
 
     // 2. Hash each attribute separately (The Leaves)
     // Har leaf ko 'master_zkp_key' ke sath lock kiya ja raha hai
-    let leaf_name = create_leaf_hash(&master_zkp_key, id_name);
-    let leaf_age  = create_leaf_hash(&master_zkp_key, id_age);
-    let leaf_nat  = create_leaf_hash(&master_zkp_key, id_nat);
+    let leaf_name = create_leaf_hash(master_zkp_key.as_ref(), id_name);
+    let leaf_age  = create_leaf_hash(master_zkp_key.as_ref(), id_age);
+    let leaf_nat  = create_leaf_hash(master_zkp_key.as_ref(), id_nat);
 
     // 3. Combine leaves to create the final Merkle Root
     let mut root_hasher = Sha256::new();
@@ -71,8 +81,9 @@ pub fn process_secure_seed(seed_str: String) -> Vec<u8> {
     let root_hex = hex::encode(merkle_root);
     info!("✅ [MERKLE ENGINE]: Identity Root Hash Generated: {}", root_hex);
 
+    // 🛡️ Note: master_zkp_key is automatically zeroized right here when it goes out of scope!
+
     // 4. Return to Android UI
-    // Hum pehle 10 characters Root Hash ke bhej rahe hain taaki UI par perfectly fit ho
     let success_message = format!("Root Hash: {}... ✅", &root_hex[0..10]);
     success_message.into_bytes()
 }
