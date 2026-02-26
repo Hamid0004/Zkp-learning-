@@ -309,47 +309,40 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     //    128-bit entropy → SHA256 → 4-bit checksum → 12 words
     // ----------------------------------------------------------------
     fun generateTrueBip39Mnemonic(): String {
-        // Step 1: 16 bytes = 128 bits of entropy
-        val entropy = ByteArray(16).also { SecureRandom().nextBytes(it) }
+    val entropy = ByteArray(16).also { SecureRandom().nextBytes(it) }
+    try {
+        val sha256 = MessageDigest.getInstance("SHA-256")
+        val hash = sha256.digest(entropy)
 
-        try {
-            // Step 2: SHA256 hash of entropy
-            val sha256 = MessageDigest.getInstance("SHA-256")
-            val hash = sha256.digest(entropy)
-
-            // Step 3: Take first 4 bits of hash as checksum
-            // 128 bits entropy + 4 bits checksum = 132 bits total = 12 × 11 bits
-            val checksumBits = (hash[0].toInt() and 0xFF) ushr 4  // top 4 bits
-
-            // Step 4: Build bit array: 128 entropy bits + 4 checksum bits
-            val bits = BooleanArray(132)
-            for (i in 0 until 16) {
-                val b = entropy[i].toInt() and 0xFF
-                for (j in 0 until 8) {
-                    bits[i * 8 + j] = (b shr (7 - j) and 1) == 1
-                }
+        val bits = BooleanArray(132)
+        for (i in 0 until 16) {
+            val b = entropy[i].toInt() and 0xFF
+            for (j in 0 until 8) {
+                bits[i * 8 + j] = (b shr (7 - j) and 1) == 1
             }
-            // Append 4 checksum bits
-            for (j in 0 until 4) {
-                bits[128 + j] = (checksumBits shr (3 - j) and 1) == 1
-            }
-
-            // Step 5: Convert every 11 bits → word index
-            val words = Array(12) { i ->
-                var idx = 0
-                for (j in 0 until 11) {
-                    idx = idx shl 1
-                    if (bits[i * 11 + j]) idx = idx or 1
-                }
-                bip39WordList[idx]
-            }
-
-            return words.joinToString(" ")
-        } finally {
-            // 🔥 Wipe entropy from RAM
-            Arrays.fill(entropy, 0.toByte())
         }
+
+        // ✅ FIX: checksumByte use karo, (7-j) se MSB-first extract karo
+        val checksumByte = hash[0].toInt() and 0xFF
+        for (j in 0 until 4) {
+            bits[128 + j] = (checksumByte shr (7 - j) and 1) == 1
+        }
+
+        val words = Array(12) { i ->
+            var idx = 0
+            for (j in 0 until 11) {
+                idx = idx shl 1
+                if (bits[i * 11 + j]) idx = idx or 1
+            }
+            // ✅ Safety clamp — crash prevention
+            bip39WordList[idx % bip39WordList.size]
+        }
+
+        return words.joinToString(" ")
+    } finally {
+        Arrays.fill(entropy, 0.toByte())
     }
+}
 
     // ----------------------------------------------------------------
     // 2. BIP39 CHECKSUM VALIDATION
