@@ -6,6 +6,8 @@ object SecureVaultJni {
         System.loadLibrary("zkp_mobile") 
     }
 
-    // 🔒 DAY 89: Naya clean function jo sirf secure seed handle karega
-    external fun generateSecureIdentityProof(unlockedSeed: String): ByteArray
+    // 🌊 MARIANA TRENCH UPGRADE: 
+    // String ki jagah ByteArray use kar rahe hain taaki RAM mein clear-text leak na ho
+    // aur use hone ke foran baad isko 0x00 se overwrite kiya ja sake.
+    external fun generateSecureIdentityProof(unlockedSeedBytes: ByteArray): ByteArray
 }

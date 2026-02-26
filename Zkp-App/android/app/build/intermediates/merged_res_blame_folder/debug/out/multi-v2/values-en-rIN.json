@@ -1,8 +1,25 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-en-rIN/values-en-rIN.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-en-rIN/values-en-rIN.xml",
             "map": [
+                {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-en-rIN/values-en-rIN.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,151,253,352,451,555,658,774",
+                        "endColumns": "95,101,98,98,103,102,115,100",
+                        "endOffsets": "146,248,347,446,550,653,769,870"
+                    },
+                    "to": {
+                        "startLines": "31,32,33,34,35,36,37,57",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3020,3116,3218,3317,3416,3520,3623,6000",
+                        "endColumns": "95,101,98,98,103,102,115,100",
+                        "endOffsets": "3111,3213,3312,3411,3515,3618,3734,6096"
+                    }
+                },
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/a30e2b592a2e45556790167a259f8a67/transformed/appcompat-1.6.1/res/values-en-rIN/values-en-rIN.xml",
                     "from": {
@@ -35,23 +52,6 @@
                         "startOffsets": "2762,2906,3739,3845,3935,4069,4173,4284,4403,4532,4670,4797,4915,5046,5146,5294,5412,5538,5677,5797,6101,6194,6317,6399,6511,6607,6733",
                         "endColumns": "143,113,105,89,133,103,110,118,128,137,126,117,130,99,147,117,125,138,119,119,92,122,81,111,95,125,95",
                         "endOffsets": "2901,3015,3840,3930,4064,4168,4279,4398,4527,4665,4792,4910,5041,5141,5289,5407,5533,5672,5792,5912,6189,6312,6394,6506,6602,6728,6824"
-                    }
-                },
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-en-rIN/values-en-rIN.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,151,253,352,451,555,658,774",
-                        "endColumns": "95,101,98,98,103,102,115,100",
-                        "endOffsets": "146,248,347,446,550,653,769,870"
-                    },
-                    "to": {
-                        "startLines": "31,32,33,34,35,36,37,57",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3020,3116,3218,3317,3416,3520,3623,6000",
-                        "endColumns": "95,101,98,98,103,102,115,100",
-                        "endOffsets": "3111,3213,3312,3411,3515,3618,3734,6096"
                     }
                 }
             ]

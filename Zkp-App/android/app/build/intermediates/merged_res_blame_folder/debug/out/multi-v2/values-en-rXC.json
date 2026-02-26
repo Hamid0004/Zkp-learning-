@@ -1,25 +1,8 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-en-rXC/values-en-rXC.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-en-rXC/values-en-rXC.xml",
             "map": [
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-en-rXC/values-en-rXC.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,251,456,657,858,1065,1270,1482",
-                        "endColumns": "195,204,200,200,206,204,211,203",
-                        "endOffsets": "246,451,652,853,1060,1265,1477,1681"
-                    },
-                    "to": {
-                        "startLines": "31,32,33,34,35,36,37,57",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "5988,6184,6389,6590,6791,6998,7203,11623",
-                        "endColumns": "195,204,200,200,206,204,211,203",
-                        "endOffsets": "6179,6384,6585,6786,6993,7198,7410,11822"
-                    }
-                },
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/13e6fae85aa2d617613c224e4d3811fe/transformed/biometric-1.2.0-alpha04/res/values-en-rXC/values-en-rXC.xml",
                     "from": {
@@ -35,6 +18,23 @@
                         "startOffsets": "5528,5773,7415,7624,7817,8053,8258,8472,8691,8923,9164,9394,9615,9848,10050,10301,10522,10751,10992,11214,11827,12023,12249,12434,12647,12846,13075",
                         "endColumns": "244,214,208,192,235,204,213,218,231,240,229,220,232,201,250,220,228,240,221,222,195,225,184,212,198,228,198",
                         "endOffsets": "5768,5983,7619,7812,8048,8253,8467,8686,8918,9159,9389,9610,9843,10045,10296,10517,10746,10987,11209,11432,12018,12244,12429,12642,12841,13070,13269"
+                    }
+                },
+                {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-en-rXC/values-en-rXC.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,251,456,657,858,1065,1270,1482",
+                        "endColumns": "195,204,200,200,206,204,211,203",
+                        "endOffsets": "246,451,652,853,1060,1265,1477,1681"
+                    },
+                    "to": {
+                        "startLines": "31,32,33,34,35,36,37,57",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "5988,6184,6389,6590,6791,6998,7203,11623",
+                        "endColumns": "195,204,200,200,206,204,211,203",
+                        "endOffsets": "6179,6384,6585,6786,6993,7198,7410,11822"
                     }
                 },
                 {

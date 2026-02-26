@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-is/values-is.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-is/values-is.xml",
             "map": [
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/13e6fae85aa2d617613c224e4d3811fe/transformed/biometric-1.2.0-alpha04/res/values-is/values-is.xml",
@@ -35,23 +35,6 @@
                         "startOffsets": "4655,4761,4915,5040,5149,5290,5415,5524,5758,5912,6018,6175,6301,6443,6597,6661,6724",
                         "endColumns": "105,153,124,108,140,124,108,104,153,105,156,125,141,153,63,62,78",
                         "endOffsets": "4756,4910,5035,5144,5285,5410,5519,5624,5907,6013,6170,6296,6438,6592,6656,6719,6798"
-                    }
-                },
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-is/values-is.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,150,257,354,454,557,661,772",
-                        "endColumns": "94,106,96,99,102,103,110,100",
-                        "endOffsets": "145,252,349,449,552,656,767,868"
-                    },
-                    "to": {
-                        "startLines": "40,41,42,43,44,45,46,147",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3644,3739,3846,3943,4043,4146,4250,13795",
-                        "endColumns": "94,106,96,99,102,103,110,100",
-                        "endOffsets": "3734,3841,3938,4038,4141,4245,4356,13891"
                     }
                 },
                 {
@@ -105,6 +88,23 @@
                         "startOffsets": "320,420,517,629,714,815,929,1010,1089,1180,1273,1366,1460,1566,1659,1754,1849,1940,2034,2115,2225,2332,2429,2538,2638,2741,2896,13714",
                         "endColumns": "99,96,111,84,100,113,80,78,90,92,92,93,105,92,94,94,90,93,80,109,106,96,108,99,102,154,97,80",
                         "endOffsets": "415,512,624,709,810,924,1005,1084,1175,1268,1361,1455,1561,1654,1749,1844,1935,2029,2110,2220,2327,2424,2533,2633,2736,2891,2989,13790"
+                    }
+                },
+                {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-is/values-is.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,150,257,354,454,557,661,772",
+                        "endColumns": "94,106,96,99,102,103,110,100",
+                        "endOffsets": "145,252,349,449,552,656,767,868"
+                    },
+                    "to": {
+                        "startLines": "40,41,42,43,44,45,46,147",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3644,3739,3846,3943,4043,4146,4250,13795",
+                        "endColumns": "94,106,96,99,102,103,110,100",
+                        "endOffsets": "3734,3841,3938,4038,4141,4245,4356,13891"
                     }
                 }
             ]

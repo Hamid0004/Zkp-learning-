@@ -1,25 +1,8 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-ko/values-ko.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-ko/values-ko.xml",
             "map": [
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-ko/values-ko.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,147,247,341,438,534,632,732",
-                        "endColumns": "91,99,93,96,95,97,99,100",
-                        "endOffsets": "142,242,336,433,529,627,727,828"
-                    },
-                    "to": {
-                        "startLines": "40,41,42,43,44,45,46,147",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3459,3551,3651,3745,3842,3938,4036,12590",
-                        "endColumns": "91,99,93,96,95,97,99,100",
-                        "endOffsets": "3546,3646,3740,3837,3933,4031,4131,12686"
-                    }
-                },
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/e9d41936cad77677db0928957cc67866/transformed/material-1.11.0/res/values-ko/values-ko.xml",
                     "from": {
@@ -105,6 +88,23 @@
                         "startOffsets": "2879,3005,6347,6448,6677,6796,6894,6995,7099,7216,7324,7440,7546,7659,7753,7878,7980,8100,8214,12395,12691,12778,12889,12971,13074,13160,13270",
                         "endColumns": "125,102,100,85,118,97,100,103,116,107,115,105,112,93,124,101,119,113,102,115,86,110,81,102,85,109,88",
                         "endOffsets": "3000,3103,6443,6529,6791,6889,6990,7094,7211,7319,7435,7541,7654,7748,7873,7975,8095,8209,8312,12506,12773,12884,12966,13069,13155,13265,13354"
+                    }
+                },
+                {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-ko/values-ko.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,147,247,341,438,534,632,732",
+                        "endColumns": "91,99,93,96,95,97,99,100",
+                        "endOffsets": "142,242,336,433,529,627,727,828"
+                    },
+                    "to": {
+                        "startLines": "40,41,42,43,44,45,46,147",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3459,3551,3651,3745,3842,3938,4036,12590",
+                        "endColumns": "91,99,93,96,95,97,99,100",
+                        "endOffsets": "3546,3646,3740,3837,3933,4031,4131,12686"
                     }
                 },
                 {

@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-bs/values-bs.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-bs/values-bs.xml",
             "map": [
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/13e6fae85aa2d617613c224e4d3811fe/transformed/biometric-1.2.0-alpha04/res/values-bs/values-bs.xml",
@@ -38,6 +38,23 @@
                     }
                 },
                 {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-bs/values-bs.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,153,255,353,457,561,663,780",
+                        "endColumns": "97,101,97,103,103,101,116,100",
+                        "endOffsets": "148,250,348,452,556,658,775,876"
+                    },
+                    "to": {
+                        "startLines": "41,42,43,44,45,46,47,148",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3813,3911,4013,4111,4215,4319,4421,14192",
+                        "endColumns": "97,101,97,103,103,101,116,100",
+                        "endOffsets": "3906,4008,4106,4210,4314,4416,4533,14288"
+                    }
+                },
+                {
                     "source": "/home/codespace/.gradle/caches/transforms-3/e9d41936cad77677db0928957cc67866/transformed/material-1.11.0/res/values-bs/values-bs.xml",
                     "from": {
                         "startLines": "2,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74",
@@ -71,23 +88,6 @@
                         "startOffsets": "4841,4947,5107,5233,5343,5493,5619,5731,5974,6128,6235,6396,6523,6673,6819,6887,6949",
                         "endColumns": "105,159,125,109,149,125,111,101,153,106,160,126,149,145,67,61,84",
                         "endOffsets": "4942,5102,5228,5338,5488,5614,5726,5828,6123,6230,6391,6518,6668,6814,6882,6944,7029"
-                    }
-                },
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-bs/values-bs.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,153,255,353,457,561,663,780",
-                        "endColumns": "97,101,97,103,103,101,116,100",
-                        "endOffsets": "148,250,348,452,556,658,775,876"
-                    },
-                    "to": {
-                        "startLines": "41,42,43,44,45,46,47,148",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3813,3911,4013,4111,4215,4319,4421,14192",
-                        "endColumns": "97,101,97,103,103,101,116,100",
-                        "endOffsets": "3906,4008,4106,4210,4314,4416,4533,14288"
                     }
                 },
                 {

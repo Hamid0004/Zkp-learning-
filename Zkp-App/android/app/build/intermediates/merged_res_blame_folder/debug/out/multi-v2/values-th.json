@@ -1,25 +1,8 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-th/values-th.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-th/values-th.xml",
             "map": [
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-th/values-th.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,151,254,352,450,553,658,770",
-                        "endColumns": "95,102,97,97,102,104,111,100",
-                        "endOffsets": "146,249,347,445,548,653,765,866"
-                    },
-                    "to": {
-                        "startLines": "40,41,42,43,44,45,46,147",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3635,3731,3834,3932,4030,4133,4238,13670",
-                        "endColumns": "95,102,97,97,102,104,111,100",
-                        "endOffsets": "3726,3829,3927,4025,4128,4233,4345,13766"
-                    }
-                },
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/e9d41936cad77677db0928957cc67866/transformed/material-1.11.0/res/values-th/values-th.xml",
                     "from": {
@@ -88,6 +71,23 @@
                         "startOffsets": "4642,4748,4895,5018,5125,5261,5385,5504,5741,5885,5990,6137,6259,6399,6550,6614,6682",
                         "endColumns": "105,146,122,106,135,123,118,107,143,104,146,121,139,150,63,67,83",
                         "endOffsets": "4743,4890,5013,5120,5256,5380,5499,5607,5880,5985,6132,6254,6394,6545,6609,6677,6761"
+                    }
+                },
+                {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-th/values-th.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,151,254,352,450,553,658,770",
+                        "endColumns": "95,102,97,97,102,104,111,100",
+                        "endOffsets": "146,249,347,445,548,653,765,866"
+                    },
+                    "to": {
+                        "startLines": "40,41,42,43,44,45,46,147",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3635,3731,3834,3932,4030,4133,4238,13670",
+                        "endColumns": "95,102,97,97,102,104,111,100",
+                        "endOffsets": "3726,3829,3927,4025,4128,4233,4345,13766"
                     }
                 },
                 {

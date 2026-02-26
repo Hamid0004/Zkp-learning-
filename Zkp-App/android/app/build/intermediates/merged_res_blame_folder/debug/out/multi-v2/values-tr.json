@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.zkpapp-mergeDebugResources-38:/values-tr/values-tr.xml",
+            "outputFile": "com.example.zkpapp-mergeDebugResources-43:/values-tr/values-tr.xml",
             "map": [
                 {
                     "source": "/home/codespace/.gradle/caches/transforms-3/064796d7c7986fba24061d687b22d122/transformed/jetified-zxing-android-embedded-4.3.0/res/values-tr/values-tr.xml",
@@ -18,23 +18,6 @@
                         "startOffsets": "14882,14943,14993,15140",
                         "endColumns": "60,49,146,119",
                         "endOffsets": "14938,14988,15135,15255"
-                    }
-                },
-                {
-                    "source": "/home/codespace/.gradle/caches/transforms-3/88b02e5e32d386c009c0cf84573a232a/transformed/core-1.12.0/res/values-tr/values-tr.xml",
-                    "from": {
-                        "startLines": "2,3,4,5,6,7,8,9",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "55,152,254,352,449,551,657,768",
-                        "endColumns": "96,101,97,96,101,105,110,100",
-                        "endOffsets": "147,249,347,444,546,652,763,864"
-                    },
-                    "to": {
-                        "startLines": "40,41,42,43,44,45,46,147",
-                        "startColumns": "4,4,4,4,4,4,4,4",
-                        "startOffsets": "3735,3832,3934,4032,4129,4231,4337,14014",
-                        "endColumns": "96,101,97,96,101,105,110,100",
-                        "endOffsets": "3827,3929,4027,4124,4226,4332,4443,14110"
                     }
                 },
                 {
@@ -71,6 +54,23 @@
                         "startOffsets": "5754",
                         "endColumns": "146",
                         "endOffsets": "5896"
+                    }
+                },
+                {
+                    "source": "/home/codespace/.gradle/caches/transforms-3/06291b3501030f9137e7677c61a255f4/transformed/core-1.13.0/res/values-tr/values-tr.xml",
+                    "from": {
+                        "startLines": "2,3,4,5,6,7,8,9",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "55,152,254,352,449,551,657,768",
+                        "endColumns": "96,101,97,96,101,105,110,100",
+                        "endOffsets": "147,249,347,444,546,652,763,864"
+                    },
+                    "to": {
+                        "startLines": "40,41,42,43,44,45,46,147",
+                        "startColumns": "4,4,4,4,4,4,4,4",
+                        "startOffsets": "3735,3832,3934,4032,4129,4231,4337,14014",
+                        "endColumns": "96,101,97,96,101,105,110,100",
+                        "endOffsets": "3827,3929,4027,4124,4226,4332,4443,14110"
                     }
                 },
                 {

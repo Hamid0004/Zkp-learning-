@@ -18,9 +18,7 @@ pub mod passport_security;
 pub mod zk_auth;
 pub mod proof_bench;   // Test Proof benchmark module
 // 🟢 NEW: Day 89 Secure Vault module declaration
-pub mod secure_vault;
-//day 89 
-pub mod zk_circuit;  
+pub mod secure_vault;  
 
 // =========================================================
 // 🦁 JNI EXPORTS

@@ -9,12 +9,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ZkpApplication : Application() {
 
     companion object {
-        // 🛡️ Global App Lock State
-        var isAppLocked = false
+        // 🛡️ MARIANA TRENCH UPGRADE: Thread-Safe Global App Lock State
+        var isAppLocked = AtomicBoolean(false)
     }
 
     override fun onCreate() {
@@ -26,14 +27,18 @@ class ZkpApplication : Application() {
         // ==========================================
         ProcessLifecycleOwner.get().lifecycle.addObserver(LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
-                // App background mein chali gayi
-                isAppLocked = true
+                // ✅ Thread-safe lock set
+                isAppLocked.set(true)
                 Log.d("ZkpSecurity", "🔒 App Minimized. Session Locked!")
             } else if (event == Lifecycle.Event.ON_START) {
-                // App wapis foreground mein aayi
-                if (isAppLocked) {
-                    Log.d("ZkpSecurity", "☝️ App Opened. Launching Lock Screen!")
-                    val intent = Intent(this, LockActivity::class.java)
+                // ✅ Thread-safe lock check
+                if (isAppLocked.get()) {
+                    Log.d("ZkpSecurity", "☝️ App Opened. Launching Global Lock!")
+                    // ✅ FIX: Calling AuthActivity, NOT the deleted LockActivity
+                    val intent = Intent(this@ZkpApplication, AuthActivity::class.java)
+                    
+                    // 🟢 Flag bhejna zaroori hai taaki AuthActivity ko pata chale ke yeh Resume hui hai
+                    intent.putExtra("from_global_lock", true) 
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     startActivity(intent)
                 }
@@ -44,7 +49,7 @@ class ZkpApplication : Application() {
         // 🦁 2. GLOBAL CRASH HANDLER (EXISTING)
         // Yeh puri app ke errors par nazar rakhega
         // ==========================================
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+        Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             handleUncaughtException(throwable)
         }
     }
