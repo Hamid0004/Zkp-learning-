@@ -5,21 +5,20 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.util.Base64
-import android.view.View
-import android.widget.Button
 import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricPrompt
-import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.example.zkpapp.security.BiometricManager
 import com.example.zkpapp.security.KeyStoreManager
+import com.example.zkpapp.ui.AuthScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -27,7 +26,6 @@ import java.util.Arrays
 
 class AuthActivity : AppCompatActivity() {
 
-    // ✅ Auth state lives in ViewModel — survives rotation, process death
     private val viewModel: AuthViewModel by viewModels()
 
     private lateinit var keyStoreManager: KeyStoreManager
@@ -37,10 +35,6 @@ class AuthActivity : AppCompatActivity() {
     private val KEY_ENCRYPTED_DATA = "data"
     private val KEY_IV             = "iv"
 
-    private lateinit var btnLogin: Button
-    private lateinit var btnRestore: Button
-    private lateinit var tvStatus: TextView
-
     private var rateLimitTimer: CountDownTimer? = null
 
     // =========================================================
@@ -48,68 +42,62 @@ class AuthActivity : AppCompatActivity() {
     // =========================================================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_auth)
-
-        btnLogin   = findViewById(R.id.btnLogin)
-        btnRestore = findViewById(R.id.btnRestore)
-        tvStatus   = findViewById(R.id.tvStatus)
 
         biometricManager = BiometricManager(this)
         keyStoreManager  = KeyStoreManager()
 
-        // ✅ UPGRADE: Observe ViewModel state (StateFlow)
-        observeViewModel()
-
-        // ✅ UPGRADE 7: Tamper detection on startup
+        // ✅ Tamper detection — dialog before UI render
         runTamperCheck()
 
         // ✅ Biometric hardware check
         if (!biometricManager.canAuthenticate()) {
-            showError("Biometric hardware not available.\nPlease enroll a fingerprint in device settings.")
-            disableButtons()
+            setContent {
+                val uiState by viewModel.uiState.collectAsState()
+                AuthScreen(
+                    uiState        = uiState,
+                    isVaultExists  = false,
+                    onUnlockClick  = {},
+                    onCreateClick  = {},
+                    onRestoreClick = {},
+                )
+            }
+            viewModel.emitError("Biometric hardware not available.\nPlease enroll a fingerprint in device settings.")
             return
         }
 
-        // ✅ UPGRADE 5: StrongBox-aware key generation
+        // ✅ StrongBox-aware key generation
         initKeyStore()
+
+        // ✅ Compose UI — XML layout replace ho gaya
+        setContent {
+            val uiState by viewModel.uiState.collectAsState()
+            AuthScreen(
+                uiState        = uiState,
+                isVaultExists  = viewModel.isVaultExists(this),
+                onUnlockClick  = { onFingerprintTapped() },
+                onCreateClick  = { onCreateTapped() },
+                onRestoreClick = { showRestoreDialog() },
+            )
+        }
 
         viewModel.emitVaultState(this)
 
-        // ✅ GLOBAL LOCK: Auto-trigger unlock if launched from background lock
-        val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
-        if (isFromGlobalLock && viewModel.isVaultExists(this)) {
-            unlockVault()
+        // ✅ AUTO POPUP — WhatsApp style
+        // Vault exists → seedha fingerprint popup kholna
+        // User ko kuch tap nahi karna — bilkul WhatsApp jaisa
+        if (viewModel.isVaultExists(this)) {
+            val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
+            window.decorView.postDelayed({
+                triggerAutoUnlock(isFromGlobalLock)
+            }, 350) // Compose render hone ka time
         }
 
-        btnLogin.setOnClickListener {
-            if (viewModel.isAuthInProgress.get()) return@setOnClickListener
-
-            // ✅ UPGRADE 6: Check rate limit before allowing auth
-            when (val status = viewModel.checkRateLimit(this)) {
-                is AuthViewModel.RateLimitStatus.Blocked -> {
-                    startRateLimitCountdown(status.waitSeconds)
-                    return@setOnClickListener
-                }
-                else -> { /* Allowed */ }
-            }
-
-            if (viewModel.isVaultExists(this)) {
-                unlockVault()
-            } else {
-                createNewVault()
-            }
-        }
-
-        btnRestore.setOnClickListener {
-            showRestoreDialog()
-        }
-
-        // ✅ UPGRADE: Modern back press handling (replaces deprecated onBackPressed)
+        // ✅ Modern back press
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val fromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
                 if (fromGlobalLock) {
-                    // Don't allow dismiss — keep lock screen up
+                    // Global lock dismiss nahi hona chahiye
                     moveTaskToBack(true)
                 } else {
                     isEnabled = false
@@ -119,72 +107,76 @@ class AuthActivity : AppCompatActivity() {
         })
     }
 
+    // ✅ onResume — minimize ke baad wapas aao to auto popup
+    // Exactly WhatsApp fingerprint behavior
+    override fun onResume() {
+        super.onResume()
+
+        val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
+        if (isFromGlobalLock && viewModel.isVaultExists(this)) {
+            if (!viewModel.isAuthInProgress.get()) {
+                window.decorView.postDelayed({
+                    triggerAutoUnlock(isFromGlobalLock = true)
+                }, 200)
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         rateLimitTimer?.cancel()
     }
 
     // =========================================================
-    // VIEWMODEL STATE OBSERVER
+    // BUTTON / AUTO TRIGGER HANDLERS
     // =========================================================
-    private fun observeViewModel() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
-                    when (state) {
-                        is AuthUiState.Idle -> { /* nothing */ }
 
-                        is AuthUiState.Loading -> {
-                            btnLogin.isEnabled   = false
-                            btnRestore.isEnabled = false
-                            tvStatus.text = "⏳ Processing..."
-                        }
+    // Fingerprint icon tap — manual trigger
+    private fun onFingerprintTapped() {
+        if (viewModel.isAuthInProgress.get()) return
+        checkRateLimitThen { unlockVault() }
+    }
 
-                        is AuthUiState.VaultExists -> {
-                            refreshUIState(state.isLocked)
-                        }
+    // Create identity button tap
+    private fun onCreateTapped() {
+        if (viewModel.isAuthInProgress.get()) return
+        checkRateLimitThen { createNewVault() }
+    }
 
-                        is AuthUiState.Success -> {
-                            showSuccess(
-                                if (state.isGlobalUnlock) "Vault Unlocked!"
-                                else "Identity Verified!"
-                            )
-                            if (state.isGlobalUnlock) {
-                                ZkpApplication.isAppLocked.set(false)
-                                finish()
-                            } else {
-                                val intent = Intent(this@AuthActivity, MainActivity::class.java)
-                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                startActivity(intent)
-                                finish()
-                            }
-                        }
+    // Auto trigger — onCreate aur onResume dono se
+    private fun triggerAutoUnlock(isFromGlobalLock: Boolean) {
+        if (viewModel.isAuthInProgress.get()) return
+        checkRateLimitThen { unlockVault() }
+    }
 
-                        is AuthUiState.Error -> {
-                            showError(state.message)
-                            enableButtons()
-                        }
-
-                        is AuthUiState.TamperDetected -> {
-                            showError("⚠️ Security Warning: Tampered environment detected.\nApp may not be safe to use.")
-                            disableButtons()
-                        }
-
-                        is AuthUiState.RateLimited -> {
-                            startRateLimitCountdown(state.waitSeconds)
-                        }
-
-                        is AuthUiState.SeedGenerated -> {
-                            // Handled inline in createNewVault — seed shown in AlertDialog
-                        }
-                    }
-                }
-            }
+    // Rate limit check helper — DRY
+    private fun checkRateLimitThen(action: () -> Unit) {
+        when (val status = viewModel.checkRateLimit(this)) {
+            is AuthViewModel.RateLimitStatus.Blocked -> startRateLimitCountdown(status.waitSeconds)
+            else -> action()
         }
     }
 
     // =========================================================
-    // UPGRADE 7: TAMPER DETECTION
+    // RATE LIMIT COUNTDOWN — Compose state ke through update
+    // =========================================================
+    private fun startRateLimitCountdown(seconds: Int) {
+        rateLimitTimer?.cancel()
+        viewModel.emitRateLimited(seconds)
+
+        rateLimitTimer = object : CountDownTimer(seconds * 1000L, 1000L) {
+            override fun onTick(ms: Long) {
+                viewModel.emitRateLimited(((ms / 1000) + 1).toInt())
+            }
+            override fun onFinish() {
+                viewModel.resetState()
+                viewModel.emitVaultState(this@AuthActivity)
+            }
+        }.start()
+    }
+
+    // =========================================================
+    // TAMPER DETECTION — logic same
     // =========================================================
     private fun runTamperCheck() {
         when (val result = viewModel.runTamperChecks(this)) {
@@ -196,7 +188,7 @@ class AuthActivity : AppCompatActivity() {
                         "Suspicious environment detected:\n\n$reasons\n\n" +
                         "Using this app on a rooted/modified device puts your keys at risk."
                     )
-                    .setPositiveButton("I understand, continue") { _, _ -> /* proceed */ }
+                    .setPositiveButton("I understand, continue") { _, _ -> }
                     .setNegativeButton("Exit") { _, _ -> finish() }
                     .setCancelable(false)
                     .show()
@@ -206,53 +198,25 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // UPGRADE 5: STRONGBOX KEY INIT
+    // STRONGBOX KEY INIT — logic same
     // =========================================================
     private fun initKeyStore() {
         try {
             val useStrongBox = viewModel.isStrongBoxAvailable(this)
             keyStoreManager.generateMasterKey(useStrongBox = useStrongBox)
-
-            if (useStrongBox) {
-                tvStatus.text = "🔒 Hardware StrongBox active"
-            }
         } catch (e: Exception) {
-            showError("Failed to initialize secure storage.\nReason: ${e.message ?: "Unknown"}")
-            disableButtons()
+            viewModel.emitError("Failed to initialize secure storage.\nReason: ${e.message ?: "Unknown"}")
         }
     }
 
     // =========================================================
-    // UPGRADE 6: RATE LIMIT COUNTDOWN UI
-    // =========================================================
-    private fun startRateLimitCountdown(seconds: Int) {
-        rateLimitTimer?.cancel()
-        disableButtons()
-
-        rateLimitTimer = object : CountDownTimer(seconds * 1000L, 1000L) {
-            override fun onTick(ms: Long) {
-                val s = (ms / 1000) + 1
-                tvStatus.text = "⛔ Too many failed attempts.\nTry again in ${s}s..."
-                tvStatus.setTextColor(resources.getColor(android.R.color.holo_orange_light, theme))
-            }
-            override fun onFinish() {
-                viewModel.resetState()
-                viewModel.emitVaultState(this@AuthActivity)
-                enableButtons()
-            }
-        }.start()
-    }
-
-    // =========================================================
-    // VAULT CREATION — True BIP39
+    // VAULT CREATION — logic same
     // =========================================================
     private fun createNewVault() {
         viewModel.emitLoading()
 
         lifecycleScope.launch(Dispatchers.Default) {
-            // ✅ UPGRADE 1: True BIP39 generation (entropy + SHA256 checksum)
             val mnemonic = viewModel.generateTrueBip39Mnemonic()
-
             withContext(Dispatchers.Main) {
                 encryptAndSaveSeed(mnemonic, isRestore = false)
             }
@@ -260,7 +224,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // UNLOCK VAULT (Decrypt Flow)
+    // UNLOCK VAULT — logic same
     // =========================================================
     private fun unlockVault() {
         if (!viewModel.isAuthInProgress.compareAndSet(false, true)) return
@@ -271,7 +235,7 @@ class AuthActivity : AppCompatActivity() {
             val ivString = prefs.getString(KEY_IV, null)
             if (ivString.isNullOrEmpty()) {
                 viewModel.isAuthInProgress.set(false)
-                showError("Vault corrupted: IV missing.\nPlease recreate your identity.")
+                viewModel.emitError("Vault corrupted: IV missing.\nPlease recreate your identity.")
                 return
             }
 
@@ -293,22 +257,33 @@ class AuthActivity : AppCompatActivity() {
 
                             if (decryptedBytes.isEmpty()) throw IllegalStateException("Decrypted data is empty")
 
-                            // ✅ Pass ByteArray to JNI — avoid String in RAM
+                            // ✅ ByteArray directly to JNI — String RAM mein nahi banta
                             val proofBytes  = SecureVaultJni.generateSecureIdentityProof(decryptedBytes)
                             val proofResult = String(proofBytes, Charsets.UTF_8)
 
-                            // ✅ Auth succeeded — reset fail counter
                             viewModel.resetFailedAttempts(this@AuthActivity)
 
                             val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
-                            viewModel.emitSuccess(proofResult, isFromGlobalLock)
+
+                            withContext(Dispatchers.Main) {
+                                if (isFromGlobalLock) {
+                                    ZkpApplication.isAppLocked.set(false)
+                                    viewModel.emitSuccess(proofResult, isGlobalUnlock = true)
+                                    finish()
+                                } else {
+                                    viewModel.emitSuccess(proofResult, isGlobalUnlock = false)
+                                    val intent = Intent(this@AuthActivity, MainActivity::class.java)
+                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    startActivity(intent)
+                                    finish()
+                                }
+                            }
 
                         } catch (e: Exception) {
-                            // ✅ UPGRADE 6: Record failure for rate limiting
                             viewModel.recordFailedAttempt(this@AuthActivity)
                             viewModel.emitError("Decryption failed.\nReason: ${e.message}")
                         } finally {
-                            // 🔥 KILL SWITCH: Zero sensitive bytes in RAM
+                            // 🔥 Zero sensitive bytes from RAM
                             decryptedBytes?.let { Arrays.fill(it, 0.toByte()) }
                             viewModel.isAuthInProgress.set(false)
                         }
@@ -316,7 +291,6 @@ class AuthActivity : AppCompatActivity() {
                 },
                 onError = { errMsg ->
                     viewModel.isAuthInProgress.set(false)
-                    // ✅ UPGRADE 6: Biometric failure = failed attempt
                     viewModel.recordFailedAttempt(this@AuthActivity)
                     viewModel.emitError("Biometric failed.\nReason: $errMsg")
                 }
@@ -328,7 +302,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // ENCRYPT AND SAVE SEED
+    // ENCRYPT AND SAVE SEED — logic same
     // =========================================================
     private fun encryptAndSaveSeed(seed: String, isRestore: Boolean) {
         if (!viewModel.isAuthInProgress.compareAndSet(false, true)) return
@@ -352,7 +326,7 @@ class AuthActivity : AppCompatActivity() {
                                 .edit()
                                 .putString(KEY_ENCRYPTED_DATA, Base64.encodeToString(encryptedBytes, Base64.DEFAULT))
                                 .putString(KEY_IV, Base64.encodeToString(ivBytes, Base64.DEFAULT))
-                                .commit()  // synchronous — critical data
+                                .commit()
 
                             if (!saved) throw IllegalStateException("Storage write failed")
 
@@ -395,7 +369,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // RESTORE DIALOG — BIP39 + Checksum Validation
+    // RESTORE DIALOG — logic same
     // =========================================================
     private fun showRestoreDialog() {
         val input = EditText(this).apply {
@@ -413,16 +387,14 @@ class AuthActivity : AppCompatActivity() {
 
                 when {
                     words.size != 12 -> {
-                        showError("Got ${words.size} words — need exactly 12.")
+                        viewModel.emitError("Got ${words.size} words — need exactly 12.")
                     }
                     words.any { it !in viewModel.bip39WordSet } -> {
-                        // ✅ O(1) HashSet lookup
                         val bad = words.filter { it !in viewModel.bip39WordSet }
-                        showError("Invalid BIP39 words: ${bad.joinToString(", ")}")
+                        viewModel.emitError("Invalid BIP39 words: ${bad.joinToString(", ")}")
                     }
                     !viewModel.validateBip39Checksum(typedSeed) -> {
-                        // ✅ UPGRADE 2: Checksum verification
-                        showError("Invalid mnemonic: checksum mismatch.\nDouble-check your words.")
+                        viewModel.emitError("Invalid mnemonic: checksum mismatch.\nDouble-check your words.")
                     }
                     else -> {
                         encryptAndSaveSeed(typedSeed, isRestore = true)
@@ -431,45 +403,5 @@ class AuthActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    // =========================================================
-    // UI HELPERS
-    // =========================================================
-    private fun refreshUIState(isLocked: Boolean) {
-        if (isLocked) {
-            tvStatus.text      = "Locked Vault Found 🔒\nAuthenticate to Decrypt"
-            btnLogin.text      = "Unlock Vault"
-            btnRestore.visibility = View.GONE
-        } else {
-            tvStatus.text      = "No Identity Found.\nCreate or Restore Recovery Seed"
-            btnLogin.text      = "Create Secret"
-            btnRestore.visibility = View.VISIBLE
-        }
-        enableButtons()
-    }
-
-    private fun showError(message: String) {
-        runOnUiThread {
-            tvStatus.text = "❌ $message"
-            tvStatus.setTextColor(resources.getColor(android.R.color.holo_red_light, theme))
-        }
-    }
-
-    private fun showSuccess(message: String) {
-        runOnUiThread {
-            tvStatus.text = "✅ $message"
-            tvStatus.setTextColor(resources.getColor(android.R.color.holo_green_light, theme))
-        }
-    }
-
-    private fun disableButtons() {
-        btnLogin.isEnabled   = false
-        btnRestore.isEnabled = false
-    }
-
-    private fun enableButtons() {
-        btnLogin.isEnabled   = true
-        btnRestore.isEnabled = true
     }
 }

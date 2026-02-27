@@ -46,6 +46,12 @@ android {
     buildFeatures {
         viewBinding true
         buildConfig true
+        compose true        // ✅ Compose enable
+    }
+
+    // ✅ Compose compiler version — Kotlin 1.9.20 ke saath compatible
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.1'
     }
 
     packagingOptions {
@@ -60,13 +66,13 @@ android {
 }
 
 dependencies {
-    // Android Core
+    // ─── Android Core ─────────────────────────────────────────
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // ML Kit & Camera (Phase 6 - Passport Scan & QR)
+    // ─── ML Kit & Camera (Phase 6) ────────────────────────────
     implementation 'com.google.android.gms:play-services-mlkit-text-recognition:19.0.0'
     implementation 'com.google.mlkit:barcode-scanning:17.1.0'
     implementation "androidx.camera:camera-core:1.3.1"
@@ -74,37 +80,42 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:1.3.1"
     implementation "androidx.camera:camera-view:1.3.1"
 
-    // JMRTD & NFC (Phase 6 - NFC Reading)
+    // ─── JMRTD & NFC (Phase 6) ────────────────────────────────
     implementation 'org.jmrtd:jmrtd:0.7.31'
     implementation 'net.sf.scuba:scuba-sc-android:0.0.20'
     implementation 'com.madgag.spongycastle:prov:1.58.0.0'
 
-    // Networking (Phase 7 - Relay Server)
+    // ─── Networking (Phase 7) ─────────────────────────────────
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     implementation 'com.squareup.okhttp3:okhttp:4.11.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:4.11.0'
 
-    // QR Code (Phase 7 - Web Login Scanner)
+    // ─── QR Code (Phase 7) ────────────────────────────────────
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'com.google.zxing:core:3.4.1'
 
-    // 🦁 PHASE 7 KEY DEPENDENCIES (ZkAuth.kt)
-    // 1. Serialization (JSON Parsing for Rust Output)
+    // ─── Phase 7 Core (ZkAuth.kt) ─────────────────────────────
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2'
-    
-    // 2. Coroutines (Async ZK Proof Generation)
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
-    
-    // 3. GSON (Legacy, used by Retrofit)
     implementation 'com.google.code.gson:gson:2.10.1'
 
+    // ─── Lifecycle + ViewModel (Phase 8) ──────────────────────
     implementation "androidx.activity:activity-ktx:1.9.0"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.3"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.3"
+    implementation "androidx.lifecycle:lifecycle-process:2.6.2"
 
-    //Phase 8 - Biometric Authentication
+    // ─── Biometric (Phase 8) ──────────────────────────────────
     implementation 'androidx.biometric:biometric:1.2.0-alpha04'
-    implementation("androidx.lifecycle:lifecycle-process:2.6.2")
+
+    // ─── Jetpack Compose (Phase 8 UI) ─────────────────────────
+    implementation "androidx.activity:activity-compose:1.9.0"
+    implementation "androidx.compose.runtime:runtime:1.6.0"           // ✅ ADD
+    implementation "androidx.compose.ui:ui:1.6.0"
+    implementation "androidx.compose.ui:ui-tooling-preview:1.6.0"     // ✅ ADD
+    implementation "androidx.compose.material3:material3:1.2.0"
+    implementation "androidx.compose.animation:animation:1.6.0"
+    debugImplementation "androidx.compose.ui:ui-tooling:1.6.0"        // ✅ Debug only
 }
