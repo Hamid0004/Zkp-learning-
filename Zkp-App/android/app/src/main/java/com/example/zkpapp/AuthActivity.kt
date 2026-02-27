@@ -72,11 +72,12 @@ class AuthActivity : AppCompatActivity() {
         setContent {
             val uiState by viewModel.uiState.collectAsState()
             AuthScreen(
-                uiState        = uiState,
-                isVaultExists  = viewModel.isVaultExists(this),
-                onUnlockClick  = { onFingerprintTapped() },
-                onCreateClick  = { onCreateTapped() },
-                onRestoreClick = { showRestoreDialog() },
+                uiState         = uiState,
+                isVaultExists   = viewModel.isVaultExists(this),
+                onUnlockClick   = { onFingerprintTapped() },
+                onCreateClick   = { onCreateTapped() },
+                onRestoreClick  = { showRestoreDialog() },
+                onDismissTamper = { viewModel.emitVaultState(this) },
             )
         }
 
@@ -181,17 +182,12 @@ class AuthActivity : AppCompatActivity() {
     private fun runTamperCheck() {
         when (val result = viewModel.runTamperChecks(this)) {
             is AuthViewModel.TamperResult.Compromised -> {
-                val reasons = result.reasons.joinToString("\n• ", prefix = "• ")
-                AlertDialog.Builder(this)
-                    .setTitle("⚠️ Security Warning")
-                    .setMessage(
-                        "Suspicious environment detected:\n\n$reasons\n\n" +
-                        "Using this app on a rooted/modified device puts your keys at risk."
-                    )
-                    .setPositiveButton("I understand, continue") { _, _ -> }
-                    .setNegativeButton("Exit") { _, _ -> finish() }
-                    .setCancelable(false)
-                    .show()
+                // ✅ Auto-dismiss banner — 4 seconds, tap X to close early
+                viewModel.emitTamperDetected()
+                window.decorView.postDelayed({
+                    // Banner auto-hide — vault state restore karo
+                    viewModel.emitVaultState(this)
+                }, 4000)
             }
             is AuthViewModel.TamperResult.Clean -> { /* all good */ }
         }

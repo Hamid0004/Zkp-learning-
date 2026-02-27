@@ -12,7 +12,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zkpapp.AuthUiState
 import kotlin.math.cos
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -65,6 +65,7 @@ fun AuthScreen(
     onUnlockClick: () -> Unit,
     onCreateClick: () -> Unit,
     onRestoreClick: () -> Unit,
+    onDismissTamper: () -> Unit = {},
 ) {
     val stars = remember { generateStars(180) }
 
@@ -153,7 +154,7 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(36.dp))
 
             // ── Status message ────────────────────────────────
-            StatusMessage(uiState = uiState)
+            StatusMessage(uiState = uiState, onDismissTamper = onDismissTamper)
         }
     }
 }
@@ -379,13 +380,72 @@ fun BreathingFingerprintButton(onClick: () -> Unit) {
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            // Fingerprint icon (text fallback — replace with your ic_fingerprint)
-            Text(
-                text     = "🫆",
-                fontSize = 44.sp,
-                color    = CyberCyan.copy(alpha = glowAlpha + 0.2f),
+            // ✅ FIX: Canvas drawn fingerprint — no emoji dependency
+            FingerprintIcon(
+                color = CyberCyan.copy(alpha = (glowAlpha + 0.2f).coerceAtMost(1f)),
+                size  = 56.dp,
             )
         }
+    }
+}
+
+// =========================================================
+// FINGERPRINT ICON — Canvas drawn (no emoji dependency)
+// Rings + center dot — works on all Android versions
+// =========================================================
+@Composable
+private fun FingerprintIcon(color: Color, size: Dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w      = this.size.width
+        val h      = this.size.height
+        val cx     = w / 2f
+        val cy     = h / 2f
+        val unit   = min(w, h)
+        val stroke = Stroke(width = unit * 0.045f, cap = StrokeCap.Round)
+
+        // Center dot
+        drawCircle(color = color, radius = unit * 0.045f, center = Offset(cx, cy))
+
+        // Ring 1 — innermost
+        drawArc(
+            color      = color,
+            startAngle = 200f, sweepAngle = 140f, useCenter = false,
+            topLeft    = Offset(cx - unit * 0.13f, cy - unit * 0.13f),
+            size       = androidx.compose.ui.geometry.Size(unit * 0.26f, unit * 0.26f),
+            style      = stroke,
+        )
+        // Ring 2
+        drawArc(
+            color      = color,
+            startAngle = 210f, sweepAngle = 160f, useCenter = false,
+            topLeft    = Offset(cx - unit * 0.23f, cy - unit * 0.23f),
+            size       = androidx.compose.ui.geometry.Size(unit * 0.46f, unit * 0.46f),
+            style      = stroke,
+        )
+        // Ring 3
+        drawArc(
+            color      = color,
+            startAngle = 215f, sweepAngle = 175f, useCenter = false,
+            topLeft    = Offset(cx - unit * 0.33f, cy - unit * 0.33f),
+            size       = androidx.compose.ui.geometry.Size(unit * 0.66f, unit * 0.66f),
+            style      = stroke,
+        )
+        // Ring 4 — outermost
+        drawArc(
+            color      = color,
+            startAngle = 220f, sweepAngle = 180f, useCenter = false,
+            topLeft    = Offset(cx - unit * 0.43f, cy - unit * 0.43f),
+            size       = androidx.compose.ui.geometry.Size(unit * 0.86f, unit * 0.86f),
+            style      = stroke,
+        )
+        // Top arch (thumb shape)
+        drawArc(
+            color      = color,
+            startAngle = 200f, sweepAngle = -160f, useCenter = false,
+            topLeft    = Offset(cx - unit * 0.33f, cy - unit * 0.42f),
+            size       = androidx.compose.ui.geometry.Size(unit * 0.66f, unit * 0.52f),
+            style      = stroke,
+        )
     }
 }
 
@@ -431,10 +491,76 @@ private fun GlassActionButton(
 }
 
 // =========================================================
+// TAMPER WARNING BANNER — auto-dismiss, tap X to close
+// =========================================================
+@Composable
+private fun TamperWarningBanner(onDismiss: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "tamper")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue  = 0.7f,
+        targetValue   = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation  = tween(800, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "blink",
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(WarnAmber.copy(alpha = 0.12f))
+            .drawBehind {
+                drawRoundRect(
+                    color        = WarnAmber.copy(alpha = 0.5f),
+                    style        = Stroke(width = 1f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()),
+                )
+            }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(
+            modifier            = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment   = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier          = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(text = "⚠️", fontSize = 16.sp)
+                Text(
+                    text       = "Debug/suspicious environment detected",
+                    fontSize   = 12.sp,
+                    color      = WarnAmber.copy(alpha = alpha),
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            // ❌ Close button
+            Text(
+                text     = "✕",
+                fontSize = 16.sp,
+                color    = WarnAmber,
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication        = null,
+                        onClick           = onDismiss,
+                    )
+                    .padding(4.dp),
+            )
+        }
+    }
+}
+
+
+// =========================================================
 // STATUS MESSAGE
 // =========================================================
 @Composable
-private fun StatusMessage(uiState: AuthUiState) {
+private fun StatusMessage(uiState: AuthUiState, onDismissTamper: () -> Unit) {
     when (uiState) {
         is AuthUiState.Error -> {
             GlassStatusCard(
@@ -459,10 +585,8 @@ private fun StatusMessage(uiState: AuthUiState) {
             )
         }
         is AuthUiState.TamperDetected -> {
-            GlassStatusCard(
-                message     = "⚠️  Suspicious environment detected.\nProceed with caution.",
-                color       = WarnAmber,
-                borderColor = WarnAmber.copy(alpha = 0.5f),
+            TamperWarningBanner(
+                onDismiss = onDismissTamper,
             )
         }
         else -> { /* Idle / Success — no message */ }
