@@ -77,20 +77,27 @@ class AuthActivity : AppCompatActivity() {
                 onUnlockClick   = { onFingerprintTapped() },
                 onCreateClick   = { onCreateTapped() },
                 onRestoreClick  = { showRestoreDialog() },
-                onDismissTamper = { viewModel.emitVaultState(this) },
+                onExitApp       = { 
+                    // 🛡️ SECURITY FIX: The Ultimate Hard Block. 
+                    // Clears all activities and kills the OS process.
+                    finishAffinity()
+                    System.exit(0)
+                }
             )
         }
 
-        viewModel.emitVaultState(this)
+        // Agar Tamper detected nahi hai, toh hi vault state emit karo.
+        // Warna tamper screen waisi hi rehni chahiye.
+        if (viewModel.uiState.value !is AuthUiState.TamperDetected) {
+            viewModel.emitVaultState(this)
+        }
 
         // ✅ AUTO POPUP — WhatsApp style
-        // Vault exists → seedha fingerprint popup kholna
-        // User ko kuch tap nahi karna — bilkul WhatsApp jaisa
-        if (viewModel.isVaultExists(this)) {
+        if (viewModel.isVaultExists(this) && viewModel.uiState.value !is AuthUiState.TamperDetected) {
             val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
             window.decorView.postDelayed({
                 triggerAutoUnlock(isFromGlobalLock)
-            }, 350) // Compose render hone ka time
+            }, 350)
         }
 
         // ✅ Modern back press
@@ -98,7 +105,6 @@ class AuthActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 val fromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
                 if (fromGlobalLock) {
-                    // Global lock dismiss nahi hona chahiye
                     moveTaskToBack(true)
                 } else {
                     isEnabled = false
@@ -108,13 +114,11 @@ class AuthActivity : AppCompatActivity() {
         })
     }
 
-    // ✅ onResume — minimize ke baad wapas aao to auto popup
-    // Exactly WhatsApp fingerprint behavior
     override fun onResume() {
         super.onResume()
 
         val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
-        if (isFromGlobalLock && viewModel.isVaultExists(this)) {
+        if (isFromGlobalLock && viewModel.isVaultExists(this) && viewModel.uiState.value !is AuthUiState.TamperDetected) {
             if (!viewModel.isAuthInProgress.get()) {
                 window.decorView.postDelayed({
                     triggerAutoUnlock(isFromGlobalLock = true)
@@ -131,26 +135,21 @@ class AuthActivity : AppCompatActivity() {
     // =========================================================
     // BUTTON / AUTO TRIGGER HANDLERS
     // =========================================================
-
-    // Fingerprint icon tap — manual trigger
     private fun onFingerprintTapped() {
         if (viewModel.isAuthInProgress.get()) return
         checkRateLimitThen { unlockVault() }
     }
 
-    // Create identity button tap
     private fun onCreateTapped() {
         if (viewModel.isAuthInProgress.get()) return
         checkRateLimitThen { createNewVault() }
     }
 
-    // Auto trigger — onCreate aur onResume dono se
     private fun triggerAutoUnlock(isFromGlobalLock: Boolean) {
         if (viewModel.isAuthInProgress.get()) return
         checkRateLimitThen { unlockVault() }
     }
 
-    // Rate limit check helper — DRY
     private fun checkRateLimitThen(action: () -> Unit) {
         when (val status = viewModel.checkRateLimit(this)) {
             is AuthViewModel.RateLimitStatus.Blocked -> startRateLimitCountdown(status.waitSeconds)
@@ -159,7 +158,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // RATE LIMIT COUNTDOWN — Compose state ke through update
+    // RATE LIMIT COUNTDOWN 
     // =========================================================
     private fun startRateLimitCountdown(seconds: Int) {
         rateLimitTimer?.cancel()
@@ -177,24 +176,21 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // TAMPER DETECTION — logic same
+    // TAMPER DETECTION — SECURITY FIX
     // =========================================================
     private fun runTamperCheck() {
         when (val result = viewModel.runTamperChecks(this)) {
             is AuthViewModel.TamperResult.Compromised -> {
-                // ✅ Auto-dismiss banner — 4 seconds, tap X to close early
+                // 🛡️ SECURITY FIX: Emit state to show the Hard Block UI.
+                // UI will handle the exit logic.
                 viewModel.emitTamperDetected()
-                window.decorView.postDelayed({
-                    // Banner auto-hide — vault state restore karo
-                    viewModel.emitVaultState(this)
-                }, 4000)
             }
             is AuthViewModel.TamperResult.Clean -> { /* all good */ }
         }
     }
 
     // =========================================================
-    // STRONGBOX KEY INIT — logic same
+    // STRONGBOX KEY INIT
     // =========================================================
     private fun initKeyStore() {
         try {
@@ -206,7 +202,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // VAULT CREATION — logic same
+    // VAULT CREATION
     // =========================================================
     private fun createNewVault() {
         viewModel.emitLoading()
@@ -220,7 +216,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // UNLOCK VAULT — logic same
+    // UNLOCK VAULT
     // =========================================================
     private fun unlockVault() {
         if (!viewModel.isAuthInProgress.compareAndSet(false, true)) return
@@ -253,7 +249,6 @@ class AuthActivity : AppCompatActivity() {
 
                             if (decryptedBytes.isEmpty()) throw IllegalStateException("Decrypted data is empty")
 
-                            // ✅ ByteArray directly to JNI — String RAM mein nahi banta
                             val proofBytes  = SecureVaultJni.generateSecureIdentityProof(decryptedBytes)
                             val proofResult = String(proofBytes, Charsets.UTF_8)
 
@@ -279,7 +274,6 @@ class AuthActivity : AppCompatActivity() {
                             viewModel.recordFailedAttempt(this@AuthActivity)
                             viewModel.emitError("Decryption failed.\nReason: ${e.message}")
                         } finally {
-                            // 🔥 Zero sensitive bytes from RAM
                             decryptedBytes?.let { Arrays.fill(it, 0.toByte()) }
                             viewModel.isAuthInProgress.set(false)
                         }
@@ -298,7 +292,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // ENCRYPT AND SAVE SEED — logic same
+    // ENCRYPT AND SAVE SEED
     // =========================================================
     private fun encryptAndSaveSeed(seed: String, isRestore: Boolean) {
         if (!viewModel.isAuthInProgress.compareAndSet(false, true)) return
@@ -347,7 +341,6 @@ class AuthActivity : AppCompatActivity() {
                         } catch (e: Exception) {
                             viewModel.emitError("Encryption failed.\nReason: ${e.message}")
                         } finally {
-                            // 🔥 Wipe seed bytes from RAM
                             seedBytes?.let { Arrays.fill(it, 0.toByte()) }
                             viewModel.isAuthInProgress.set(false)
                         }
@@ -365,7 +358,7 @@ class AuthActivity : AppCompatActivity() {
     }
 
     // =========================================================
-    // RESTORE DIALOG — logic same
+    // RESTORE DIALOG
     // =========================================================
     private fun showRestoreDialog() {
         val input = EditText(this).apply {

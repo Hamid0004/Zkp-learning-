@@ -65,7 +65,7 @@ fun AuthScreen(
     onUnlockClick: () -> Unit,
     onCreateClick: () -> Unit,
     onRestoreClick: () -> Unit,
-    onDismissTamper: () -> Unit = {},
+    onExitApp: () -> Unit = {}, // 🛡️ UPGRADED: Hard Block Exit Function
 ) {
     val stars = remember { generateStars(180) }
 
@@ -121,40 +121,43 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(52.dp))
 
             // ── Main action area ──────────────────────────────
-            if (isVaultExists) {
-                // Vault exists → show fingerprint button
-                BreathingFingerprintButton(onClick = onUnlockClick)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text      = "Authenticate with Fingerprint",
-                    fontSize  = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color     = TextPrimary,
-                )
-                Text(
-                    text    = "Scan & Unlock Securely",
-                    fontSize = 12.sp,
-                    color   = TextSecondary,
-                )
-            } else {
-                // First time → Create / Restore
-                GlassActionButton(
-                    label      = "Create Identity",
-                    gradient   = listOf(NeonBlue, CyberCyan),
-                    onClick    = onCreateClick,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                GlassActionButton(
-                    label      = "Restore Identity",
-                    gradient   = listOf(PulseViolet, NeonBlue),
-                    onClick    = onRestoreClick,
-                )
+            // 🛑 SECURITY CHECK: If tampered, hide biometric/create buttons completely!
+            if (uiState !is AuthUiState.TamperDetected) {
+                if (isVaultExists) {
+                    // Vault exists → show fingerprint button
+                    BreathingFingerprintButton(onClick = onUnlockClick)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text      = "Authenticate with Fingerprint",
+                        fontSize  = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color     = TextPrimary,
+                    )
+                    Text(
+                        text    = "Scan & Unlock Securely",
+                        fontSize = 12.sp,
+                        color   = TextSecondary,
+                    )
+                } else {
+                    // First time → Create / Restore
+                    GlassActionButton(
+                        label      = "Create Identity",
+                        gradient   = listOf(NeonBlue, CyberCyan),
+                        onClick    = onCreateClick,
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    GlassActionButton(
+                        label      = "Restore Identity",
+                        gradient   = listOf(PulseViolet, NeonBlue),
+                        onClick    = onRestoreClick,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(36.dp))
 
             // ── Status message ────────────────────────────────
-            StatusMessage(uiState = uiState, onDismissTamper = onDismissTamper)
+            StatusMessage(uiState = uiState, onExitApp = onExitApp)
         }
     }
 }
@@ -380,7 +383,6 @@ fun BreathingFingerprintButton(onClick: () -> Unit) {
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            // ✅ FIX: Canvas drawn fingerprint — no emoji dependency
             FingerprintIcon(
                 color = CyberCyan.copy(alpha = (glowAlpha + 0.2f).coerceAtMost(1f)),
                 size  = 56.dp,
@@ -390,8 +392,7 @@ fun BreathingFingerprintButton(onClick: () -> Unit) {
 }
 
 // =========================================================
-// FINGERPRINT ICON — Canvas drawn (no emoji dependency)
-// Rings + center dot — works on all Android versions
+// FINGERPRINT ICON
 // =========================================================
 @Composable
 private fun FingerprintIcon(color: Color, size: Dp) {
@@ -491,16 +492,16 @@ private fun GlassActionButton(
 }
 
 // =========================================================
-// TAMPER WARNING BANNER — auto-dismiss, tap X to close
+// 🛑 TAMPER HARD BLOCK BANNER (OPTION 2)
 // =========================================================
 @Composable
-private fun TamperWarningBanner(onDismiss: () -> Unit) {
+private fun TamperHardBlockBanner(onExitApp: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "tamper")
     val alpha by infiniteTransition.animateFloat(
-        initialValue  = 0.7f,
+        initialValue  = 0.6f,
         targetValue   = 1.0f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(800, easing = EaseInOutSine),
+            animation  = tween(600, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "blink",
@@ -510,57 +511,69 @@ private fun TamperWarningBanner(onDismiss: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(WarnAmber.copy(alpha = 0.12f))
+            .background(ErrorRed.copy(alpha = 0.15f))
             .drawBehind {
                 drawRoundRect(
-                    color        = WarnAmber.copy(alpha = 0.5f),
-                    style        = Stroke(width = 1f),
+                    color        = ErrorRed.copy(alpha = 0.6f),
+                    style        = Stroke(width = 1.5f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()),
                 )
             }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(16.dp),
     ) {
-        Row(
-            modifier            = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment   = Alignment.CenterVertically,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier          = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(text = "⚠️", fontSize = 16.sp)
+                Text(text = "🛑", fontSize = 20.sp)
                 Text(
-                    text       = "Debug/suspicious environment detected",
-                    fontSize   = 12.sp,
-                    color      = WarnAmber.copy(alpha = alpha),
-                    fontWeight = FontWeight.Medium,
+                    text       = "CRITICAL SECURITY ALERT",
+                    fontSize   = 14.sp,
+                    color      = ErrorRed.copy(alpha = alpha),
+                    fontWeight = FontWeight.Bold,
                 )
             }
-            // ❌ Close button
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
             Text(
-                text     = "✕",
-                fontSize = 16.sp,
-                color    = WarnAmber,
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication        = null,
-                        onClick           = onDismiss,
-                    )
-                    .padding(4.dp),
+                text      = "Rooted or modified environment detected.\nTo protect your cryptographic keys, access is permanently blocked on this device.",
+                fontSize  = 12.sp,
+                color     = TextPrimary,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 🛑 Exit Button (The only way out)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ErrorRed)
+                    .clickable { onExitApp() }
+                    .padding(horizontal = 24.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = "EXIT APP",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
         }
     }
 }
-
 
 // =========================================================
 // STATUS MESSAGE
 // =========================================================
 @Composable
-private fun StatusMessage(uiState: AuthUiState, onDismissTamper: () -> Unit) {
+private fun StatusMessage(uiState: AuthUiState, onExitApp: () -> Unit) {
     when (uiState) {
         is AuthUiState.Error -> {
             GlassStatusCard(
@@ -585,9 +598,8 @@ private fun StatusMessage(uiState: AuthUiState, onDismissTamper: () -> Unit) {
             )
         }
         is AuthUiState.TamperDetected -> {
-            TamperWarningBanner(
-                onDismiss = onDismissTamper,
-            )
+            // 🛑 Call the Hard Block Banner here
+            TamperHardBlockBanner(onExitApp = onExitApp)
         }
         else -> { /* Idle / Success — no message */ }
     }

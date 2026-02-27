@@ -237,7 +237,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         "rich","ride","ridge","rifle","right","rigid","ring","riot",
         "ripple","risk","ritual","rival","river","road","roast","robot",
         "robust","rocket","romance","roof","rookie","room","rose","rotate",
-        "rough","route","royal","rubber","rude","rug","rule","run",
+        "rough","route","royal","rubber","rude","rude","rug","rule","run",
         "runway","rural","sad","saddle","sadness","safe","sail","salad",
         "salmon","salon","salt","salute","same","sample","sand","satisfy",
         "satoshi","sauce","sausage","save","scale","scan","scatter","scene",
@@ -309,40 +309,38 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     //    128-bit entropy → SHA256 → 4-bit checksum → 12 words
     // ----------------------------------------------------------------
     fun generateTrueBip39Mnemonic(): String {
-    val entropy = ByteArray(16).also { SecureRandom().nextBytes(it) }
-    try {
-        val sha256 = MessageDigest.getInstance("SHA-256")
-        val hash = sha256.digest(entropy)
+        val entropy = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        try {
+            val sha256 = MessageDigest.getInstance("SHA-256")
+            val hash = sha256.digest(entropy)
 
-        val bits = BooleanArray(132)
-        for (i in 0 until 16) {
-            val b = entropy[i].toInt() and 0xFF
-            for (j in 0 until 8) {
-                bits[i * 8 + j] = (b shr (7 - j) and 1) == 1
+            val bits = BooleanArray(132)
+            for (i in 0 until 16) {
+                val b = entropy[i].toInt() and 0xFF
+                for (j in 0 until 8) {
+                    bits[i * 8 + j] = (b shr (7 - j) and 1) == 1
+                }
             }
-        }
 
-        // ✅ FIX: checksumByte use karo, (7-j) se MSB-first extract karo
-        val checksumByte = hash[0].toInt() and 0xFF
-        for (j in 0 until 4) {
-            bits[128 + j] = (checksumByte shr (7 - j) and 1) == 1
-        }
-
-        val words = Array(12) { i ->
-            var idx = 0
-            for (j in 0 until 11) {
-                idx = idx shl 1
-                if (bits[i * 11 + j]) idx = idx or 1
+            val checksumByte = hash[0].toInt() and 0xFF
+            for (j in 0 until 4) {
+                bits[128 + j] = (checksumByte shr (7 - j) and 1) == 1
             }
-            // ✅ Safety clamp — crash prevention
-            bip39WordList[idx % bip39WordList.size]
-        }
 
-        return words.joinToString(" ")
-    } finally {
-        Arrays.fill(entropy, 0.toByte())
+            val words = Array(12) { i ->
+                var idx = 0
+                for (j in 0 until 11) {
+                    idx = idx shl 1
+                    if (bits[i * 11 + j]) idx = idx or 1
+                }
+                bip39WordList[idx % bip39WordList.size]
+            }
+
+            return words.joinToString(" ")
+        } finally {
+            Arrays.fill(entropy, 0.toByte())
+        }
     }
-}
 
     // ----------------------------------------------------------------
     // 2. BIP39 CHECKSUM VALIDATION
@@ -354,7 +352,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         if (words.any { it !in bip39WordSet }) return false
 
         return try {
-            // Convert words → indices → bits (132 bits total)
             val bits = BooleanArray(132)
             for (i in words.indices) {
                 val idx = bip39WordList.indexOf(words[i])
@@ -364,7 +361,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            // Extract 128 entropy bits
             val entropy = ByteArray(16)
             for (i in 0 until 16) {
                 var b = 0
@@ -375,14 +371,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 entropy[i] = b.toByte()
             }
 
-            // Extract 4 checksum bits from mnemonic
             var mnemonicChecksum = 0
             for (j in 0 until 4) {
                 mnemonicChecksum = mnemonicChecksum shl 1
                 if (bits[128 + j]) mnemonicChecksum = mnemonicChecksum or 1
             }
 
-            // Compute expected checksum from entropy
             val sha256 = MessageDigest.getInstance("SHA-256")
             val hash = sha256.digest(entropy)
             val expectedChecksum = (hash[0].toInt() and 0xFF) ushr 4
@@ -395,14 +389,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ----------------------------------------------------------------
-    // 3. TAMPER DETECTION — Root, Debug, Emulator
+    // 3. TAMPER DETECTION — Root & Emulator ONLY (No Debug check)
     // ----------------------------------------------------------------
     fun runTamperChecks(context: Context): TamperResult {
         val flags = mutableListOf<String>()
 
-        // (a) Debuggable flag check
-        val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        if (isDebuggable) flags.add("App is running in debug mode")
+        // 🟢 REMOVED: Debuggable flag check. App will no longer warn during Android Studio development.
 
         // (b) Known root management apps
         val rootApps = listOf(
