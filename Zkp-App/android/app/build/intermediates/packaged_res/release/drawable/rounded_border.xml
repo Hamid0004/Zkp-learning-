@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Transparent center for camera preview -->
+    <solid android:color="@android:color/transparent"/>
+
+    <!-- High-contrast border for MRZ detection -->
+    <stroke
+        android:width="2dp"
+        android:color="#FFFFFF"/>
+
+    <!-- Slightly rounded (passport MRZ is rectangular, not oval) -->
+    <corners android:radius="8dp"/>
+
+</shape>
