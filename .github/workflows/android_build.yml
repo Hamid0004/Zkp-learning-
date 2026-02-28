@@ -62,13 +62,9 @@ jobs:
         ./gradlew assembleDebug
 
     # ── Step 8: Upload APKs as single downloadable artifact ───────────────
-    #    splits enabled → 2 APKs banti hain (arm64 + armeabi)
-    #    Ek ZIP mein dono milenge — arm64-v8a modern phones ke liye
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: ZkpApp-Plonky2-Powered
-        path: |
-          Zkp-App/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
-          Zkp-App/android/app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+        path: Zkp-App/android/app/build/outputs/apk/debug/
         if-no-files-found: warn
