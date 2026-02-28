@@ -257,16 +257,20 @@ class AuthActivity : AppCompatActivity() {
                             val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
 
                             withContext(Dispatchers.Main) {
-                                if (isFromGlobalLock) {
-                                    ZkpApplication.isAppLocked.set(false)
+                                ZkpApplication.isAppLocked.set(false)
+
+                                // 🛡️ NAVIGATION FIX: "WhatsApp Bug" Solved
+                                // Check if AuthActivity is the ONLY screen open. 
+                                // Agar peeche koi screen nahi hai (!isTaskRoot), toh lazmi MainActivity kholo!
+                                if (isFromGlobalLock && !isTaskRoot) {
                                     viewModel.emitSuccess(proofResult, isGlobalUnlock = true)
-                                    finish()
+                                    finish() // Peeche MainActivity hai, usko dikhao
                                 } else {
                                     viewModel.emitSuccess(proofResult, isGlobalUnlock = false)
                                     val intent = Intent(this@AuthActivity, MainActivity::class.java)
                                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                     startActivity(intent)
-                                    finish()
+                                    finish() // Nayi MainActivity kholi hai, isko khatam karo
                                 }
                             }
 

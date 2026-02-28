@@ -237,7 +237,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         "rich","ride","ridge","rifle","right","rigid","ring","riot",
         "ripple","risk","ritual","rival","river","road","roast","robot",
         "robust","rocket","romance","roof","rookie","room","rose","rotate",
-        "rough","route","royal","rubber","rude","rude","rug","rule","run",
+        "rough","route","royal","rubber","rude","rug","rule","run",
         "runway","rural","sad","saddle","sadness","safe","sail","salad",
         "salmon","salon","salt","salute","same","sample","sand","satisfy",
         "satoshi","sauce","sausage","save","scale","scan","scatter","scene",
