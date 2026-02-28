@@ -1,9 +1,41 @@
+# ─── Rust / Cargo ────────────────────────────────────────────
 target/
-*.apk
-*.so
-*.zip
-*.aab
+**/target/
+
+# ─── Android Build Outputs ───────────────────────────────────
 /android/app/build/
-/target/
+**/build/
+*.apk
+*.aab
 *.dex
 *.class
+
+# ─── Native Libraries (compiled) ─────────────────────────────
+*.so
+*.zip
+
+# ─── Android Studio ──────────────────────────────────────────
+.idea/
+*.iml
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ─── ProGuard / R8 Mapping ───────────────────────────────────
+mapping.txt
+**/mapping/
+seeds.txt
+usage.txt
+
+# ─── Keystore — kabhi commit nahi karna ──────────────────────
+*.jks
+*.keystore
+
+# ─── OS Files ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Logs ────────────────────────────────────────────────────
+*.log

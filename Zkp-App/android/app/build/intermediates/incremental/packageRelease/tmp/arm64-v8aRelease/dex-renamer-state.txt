@@ -1,7 +1,0 @@
-#Sat Feb 28 12:46:47 UTC 2026
-base.1=/workspaces/zkp-identity/Zkp-App/android/app/build/intermediates/dex/release/minifyReleaseWithR8/classes2.dex
-path.1=classes2.dex
-base.0=/workspaces/zkp-identity/Zkp-App/android/app/build/intermediates/dex/release/minifyReleaseWithR8/classes.dex
-renamed.1=classes2.dex
-renamed.0=classes.dex
-path.0=classes.dex
