@@ -66,5 +66,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ZkpApp-Plonky2-Powered
-        path: Zkp-App/android/app/build/outputs/apk/debug/
+        path: Zkp-App/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
         if-no-files-found: warn
