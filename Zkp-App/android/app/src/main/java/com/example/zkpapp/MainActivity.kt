@@ -6,11 +6,13 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityOptionsCompat // 👈 Ye import add kiya transition ke liye
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -60,7 +62,8 @@ class MainActivity : AppCompatActivity() {
             MainDashboard(
                 onScanQr = {
                     if (IdentityStorage.hasIdentity()) {
-                        startActivity(Intent(this, LoginActivity::class.java).apply {
+                        // 👈 Smooth transition use kiya hai
+                        launchActivitySmoothly(Intent(this, LoginActivity::class.java).apply {
                             putExtra("MODE", "WEB_LOGIN")
                         })
                     } else {
@@ -68,20 +71,30 @@ class MainActivity : AppCompatActivity() {
                     }
                 },
                 onScanPassport = {
-                    startActivity(Intent(this, PassportActivity::class.java))
+                    launchActivitySmoothly(Intent(this, PassportActivity::class.java)) // 👈
                 },
                 onOfflineIdentity = {
                     if (IdentityStorage.hasIdentity()) {
-                        startActivity(Intent(this, OfflineMenuActivity::class.java))
+                        launchActivitySmoothly(Intent(this, OfflineMenuActivity::class.java)) // 👈
                     } else {
                         Toast.makeText(this, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onTestProof = {
-                    startActivity(Intent(this, TestProofActivity::class.java))
+                    launchActivitySmoothly(Intent(this, TestProofActivity::class.java)) // 👈
                 }
             )
         }
+    }
+
+    // 👈 Ye function add kiya hai fade in/out animations ke liye
+    private fun launchActivitySmoothly(intent: Intent) {
+        val options = ActivityOptionsCompat.makeCustomAnimation(
+            this,
+            android.R.anim.fade_in,
+            android.R.anim.fade_out
+        )
+        startActivity(intent, options.toBundle())
     }
 }
 
@@ -322,7 +335,8 @@ private fun DashboardCard(
     onClick:  () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    var pressed by remember { mutableStateOf(false) }
+    
+    val pressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
         targetValue   = if (pressed) 0.97f else 1f,
@@ -355,10 +369,7 @@ private fun DashboardCard(
             .clickable(
                 interactionSource = interactionSource,
                 indication        = null,
-                onClick           = {
-                    pressed = true
-                    onClick()
-                }
+                onClick           = onClick
             )
             .padding(horizontal = 20.dp),
         contentAlignment = Alignment.CenterStart,

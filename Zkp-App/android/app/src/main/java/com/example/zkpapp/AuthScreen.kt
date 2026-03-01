@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState // 👈 Ye import add kiya
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -308,7 +309,7 @@ private fun LionShieldLogo() {
 fun BreathingFingerprintButton(onClick: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "fp")
 
-    val scale by infiniteTransition.animateFloat(
+    val baseScale by infiniteTransition.animateFloat(
         initialValue  = 0.93f,
         targetValue   = 1.07f,
         animationSpec = infiniteRepeatable(
@@ -338,6 +339,17 @@ fun BreathingFingerprintButton(onClick: () -> Unit) {
         label = "ring",
     )
 
+    // 👈 Yahan Fingerprint button ke liye touch state add ki
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    // Jab user tap kare toh button thora chota ho jaye (bounce effect)
+    val tapScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "tapScale"
+    )
+
     Box(
         contentAlignment = Alignment.Center,
         modifier         = Modifier.size(140.dp),
@@ -356,7 +368,7 @@ fun BreathingFingerprintButton(onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(110.dp)
-                .scale(scale)
+                .scale(baseScale * tapScale) // 👈 Dono scales combine kar diye
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
@@ -377,7 +389,7 @@ fun BreathingFingerprintButton(onClick: () -> Unit) {
                     )
                 }
                 .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
+                    interactionSource = interactionSource, // 👈 Interaction source yahan pass kiya
                     indication        = null,
                     onClick           = onClick,
                 ),
@@ -461,10 +473,20 @@ private fun GlassActionButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
+    // 👈 Yahan bhi Create/Restore buttons ke liye touch state add ki
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue   = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label         = "scale"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
+            .scale(scale) // 👈 Bounce scale apply kiya
             .clip(RoundedCornerShape(16.dp))
             .background(GlassWhite)
             .drawBehind {
