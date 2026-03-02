@@ -264,13 +264,17 @@ class AuthActivity : AppCompatActivity() {
                                 // Agar peeche koi screen nahi hai (!isTaskRoot), toh lazmi MainActivity kholo!
                                 if (isFromGlobalLock && !isTaskRoot) {
                                     viewModel.emitSuccess(proofResult, isGlobalUnlock = true)
-                                    finish() // Peeche MainActivity hai, usko dikhao
+                                    finish()
+                                    // ✅ No transition animation — no white flash
+                                    overridePendingTransition(0, 0)
                                 } else {
                                     viewModel.emitSuccess(proofResult, isGlobalUnlock = false)
                                     val intent = Intent(this@AuthActivity, MainActivity::class.java)
                                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                     startActivity(intent)
-                                    finish() // Nayi MainActivity kholi hai, isko khatam karo
+                                    // ✅ No transition animation — no white flash
+                                    overridePendingTransition(0, 0)
+                                    finish()
                                 }
                             }
 
