@@ -92,7 +92,7 @@ fn hash_pair(left: &HashOut<F>, right: &HashOut<F>) -> HashOut<F> {
 fn build_merkle_root(master_key: &[F]) -> Vec<u8> {
     // Attribute payloads — replace with runtime identity data in production.
     let leaves_raw: &[(&[u8], u64)] = &[
-        (b"Name: Noman",       attr::NAME),
+        (b"Name: Ali",       attr::NAME),
         (b"Age: 22",           attr::AGE),
         (b"Nationality: PK",   attr::NATIONALITY),
         (b"Random_Padding_123",attr::PADDING),
