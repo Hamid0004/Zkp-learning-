@@ -37,7 +37,6 @@
       pointer-events: none;
     }
     @keyframes gridScroll { from{background-position:0 0} to{background-position:0 60px} }
-
     .scene { position: relative; z-index: 10; width: 100%; max-width: 420px; }
     .card {
       background: var(--glass);
@@ -65,8 +64,6 @@
     }
     .card::before { top:14px; left:14px; border-width:1.5px 0 0 1.5px; border-radius:4px 0 0 0; }
     .card::after  { bottom:14px; right:14px; border-width:0 1.5px 1.5px 0; border-radius:0 0 4px 0; }
-
-    /* Logo */
     .zkp-logo {
       display:block; margin:0 auto 16px; width:62px; height:62px;
       filter: drop-shadow(0 0 12px var(--neon-blue)) drop-shadow(0 0 28px var(--neon-purple));
@@ -86,10 +83,7 @@
       font-family:'JetBrains Mono',monospace; color:rgba(138,148,173,0.8);
       font-size:12px; letter-spacing:1.5px; text-transform:uppercase;
     }
-
-    /* ── DESKTOP: QR section ─────────────────────────────────── */
     .desktop-section { display:none; }
-
     #qr-container {
       display:inline-flex; justify-content:center; align-items:center;
       padding:18px; border-radius:20px; margin:28px 0 22px;
@@ -131,18 +125,12 @@
       font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:500;
       color:var(--neon-blue); text-transform:uppercase; letter-spacing:1.5px;
     }
-
-    /* ── MOBILE: Buttons section ─────────────────────────────── */
     .mobile-section { display:none; }
-
     .mobile-hint {
       font-family:'JetBrains Mono',monospace;
       font-size:11px; color:rgba(138,148,173,0.6);
-      letter-spacing:1px; margin: 18px 0 20px;
-      line-height:1.6;
+      letter-spacing:1px; margin: 18px 0 20px; line-height:1.6;
     }
-
-    /* ZKAuth main button */
     .zkauth-btn {
       width:100%; padding:15px 20px; border-radius:14px;
       border:1px solid rgba(0,210,255,0.4); background:rgba(0,210,255,0.07);
@@ -161,8 +149,6 @@
       border:1px solid rgba(0,210,255,0.28); padding:2px 8px; border-radius:999px;
       color:rgba(0,210,255,0.8); font-family:'JetBrains Mono',monospace; margin-left:auto;
     }
-
-    /* Claim buttons */
     .claim-row { display:flex; gap:10px; margin-bottom:10px; }
     .claim-btn {
       flex:1; padding:13px 6px; border-radius:12px;
@@ -178,20 +164,13 @@
     .claim-btn:active { transform:translateY(0); }
     .claim-icon { font-size:20px; }
     .claim-label { font-size:10px; font-weight:700; letter-spacing:0.5px; }
-    .claim-tag {
-      font-family:'JetBrains Mono',monospace; font-size:8px;
-      letter-spacing:1px; color:rgba(157,80,187,0.75); text-transform:uppercase;
-    }
-
-    /* Divider */
+    .claim-tag { font-family:'JetBrains Mono',monospace; font-size:8px; letter-spacing:1px; color:rgba(157,80,187,0.75); text-transform:uppercase; }
     .divider {
       display:flex; align-items:center; gap:12px; margin:18px 0;
       color:rgba(138,148,173,0.4); font-family:'JetBrains Mono',monospace;
       font-size:10px; letter-spacing:2px; text-transform:uppercase;
     }
     .divider::before, .divider::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.07); }
-
-    /* Standard login button */
     .std-btn {
       width:100%; padding:13px; border-radius:12px;
       border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04);
@@ -204,8 +183,6 @@
       color:rgba(255,255,255,0.85); transform:translateY(-1px);
     }
     .std-btn:active { transform:translateY(0); }
-
-    /* Success card */
     .success-icon-wrap {
       display:flex; justify-content:center; align-items:center;
       margin:0 auto 18px; width:72px; height:72px; border-radius:50%;
@@ -234,8 +211,6 @@
       font-family:'JetBrains Mono',monospace; font-size:11px;
       color:rgba(255,255,255,0.85); word-break:break-all; line-height:1.7;
     }
-
-    /* Toast */
     .toast {
       position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
       background:rgba(5,11,24,0.96); border:1px solid rgba(0,210,255,0.3);
@@ -257,11 +232,8 @@
   <div class="toast hidden" id="toast"></div>
 
   <div class="scene">
-
-    <!-- ── Login Card ───────────────────────────────────────────── -->
     <div class="card" id="login-card">
 
-      <!-- ZKP Shield Logo -->
       <svg class="zkp-logo" viewBox="0 0 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M31 5L9 14.5v15.8c0 12.8 9.5 24.8 22 27.7 12.5-2.9 22-14.9 22-27.7V14.5L31 5z"
           fill="rgba(0,210,255,0.07)" stroke="url(#sg)" stroke-width="1.8" stroke-linejoin="round"/>
@@ -280,7 +252,7 @@
       <h2>ZK-PROTOCOL</h2>
       <p class="subtitle">Zero-Knowledge Identity Gateway</p>
 
-      <!-- ══ DESKTOP: QR ═══════════════════════════════════════ -->
+      <!-- DESKTOP: QR -->
       <div class="desktop-section" id="desktop-section">
         <div id="qr-container"></div>
         <div class="status-box">
@@ -292,11 +264,10 @@
         </p>
       </div>
 
-      <!-- ══ MOBILE: Buttons ════════════════════════════════════ -->
+      <!-- MOBILE: Buttons -->
       <div class="mobile-section" id="mobile-section">
         <p class="mobile-hint">Tap to authenticate with<br/>your ZKP identity wallet</p>
 
-        <!-- ZKAuth full login -->
         <button class="zkauth-btn" onclick="zkAuthTap('zkauth')">
           <svg width="18" height="18" viewBox="0 0 62 62" fill="none">
             <path d="M31 5L9 14.5v15.8c0 12.8 9.5 24.8 22 27.7 12.5-2.9 22-14.9 22-27.7V14.5L31 5z"
@@ -308,7 +279,6 @@
           <span class="btn-badge">Passkey</span>
         </button>
 
-        <!-- Claim buttons -->
         <div class="claim-row">
           <button class="claim-btn" onclick="zkAuthTap('age')">
             <span class="claim-icon">👤</span>
@@ -332,10 +302,9 @@
           Standard Login
         </button>
       </div>
-
     </div>
 
-    <!-- ── Success Card ──────────────────────────────────────────── -->
+    <!-- Success Card -->
     <div class="card hidden" id="success-card">
       <div class="success-icon-wrap">
         <svg viewBox="0 0 36 36"><polyline points="6,18 14,26 30,10"/></svg>
@@ -347,10 +316,9 @@
         <div class="nullifier-val" id="nullifier-val">…</div>
       </div>
     </div>
-
   </div>
 
-  <!-- ── Galaxy Stars ─────────────────────────────────────────── -->
+  <!-- Galaxy Stars -->
   <script>
   (function () {
     const canvas = document.getElementById('starfield');
@@ -394,34 +362,35 @@
   })();
   </script>
 
-  <!-- ── Core Logic ────────────────────────────────────────────── -->
+  <!-- Core Logic -->
   <script>
   const API_URL = window.location.origin + '/api';
   let sessionId = null, pollInterval = null, toastTimer = null;
 
-  // ── Device detection ─────────────────────────────────────────
+  // Device detection
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && window.innerWidth < 768);
 
-  // Show correct section
   document.getElementById(isMobile ? 'mobile-section' : 'desktop-section').style.display = 'block';
 
-  // ── Desktop: start QR session ────────────────────────────────
-  if (!isMobile) {
-    startSession('zkauth');
-  }
+  if (!isMobile) startSession();
 
-  async function startSession(claimType = 'zkauth') {
+  async function startSession() {
+    // Clear any existing poll
+    clearInterval(pollInterval);
+    sessionId = null;
+
     try {
-      const res  = await fetch(`${API_URL}/start-session?claim=${claimType}`);
+      const res  = await fetch(`${API_URL}/start-session`);
       const data = await res.json();
       sessionId  = data.session_id;
 
+      // FIX: QR always uses plain sessionId — app expects this
       const qrDiv = document.getElementById('qr-container');
       if (qrDiv) {
         qrDiv.innerHTML = '';
         new QRCode(qrDiv, {
-          text: data.deep_link || sessionId,   // deep link in QR — app handles it
+          text: sessionId,
           width: 200, height: 200,
           colorDark: '#000000', colorLight: '#ffffff',
           correctLevel: QRCode.CorrectLevel.H,
@@ -433,6 +402,8 @@
       console.error('Session start failed:', err);
       const lbl = document.getElementById('status-label');
       if (lbl) { lbl.textContent = 'OFFLINE'; lbl.style.color = '#ff4b4b'; }
+      // Retry after 5s if offline
+      setTimeout(startSession, 5000);
     }
   }
 
@@ -440,19 +411,34 @@
     if (!sessionId) return;
     try {
       const res  = await fetch(`${API_URL}/poll-status/${sessionId}`);
+
+      // FIX: session not found → auto restart silently
+      if (res.status === 404) {
+        clearInterval(pollInterval);
+        startSession();
+        return;
+      }
+
       if (!res.ok) return;
       const data = await res.json();
 
-      // Update status label based on state machine
+      // FIX: expired → auto restart silently (no error shown)
+      if (data.status === 'expired') {
+        clearInterval(pollInterval);
+        startSession();
+        return;
+      }
+
+      // Update status label
       const lbl = document.getElementById('status-label');
       if (lbl) {
         const labels = {
-          pending:   'Awaiting Encrypted Link…',
-          scanning:  'Scan Detected — Awaiting Biometric…',
-          proving:   'Generating ZK Proof…',
+          pending  : 'Awaiting Encrypted Link…',
+          scanning : 'Scan Detected — Awaiting Biometric…',
+          proving  : 'Generating ZK Proof…',
           completed: 'Verified!',
         };
-        lbl.textContent = labels[data.status] || data.status;
+        lbl.textContent = labels[data.status] || 'Awaiting Encrypted Link…';
       }
 
       if (data.status === 'completed') {
@@ -468,24 +454,26 @@
     } catch (err) { console.error('Poll error:', err); }
   }
 
-  // ── Mobile: ZKAuth tap → deep link ──────────────────────────
+  // Mobile: tap → deep link
   async function zkAuthTap(claimType) {
     try {
       const res  = await fetch(`${API_URL}/start-session?claim=${claimType}`);
       const data = await res.json();
       sessionId  = data.session_id;
 
-      // Notify scan immediately (optimistic)
+      // Notify server that scan is happening
       fetch(`${API_URL}/scan-notify`, {
-        method: 'POST',
+        method : 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ sessionId }),
-      });
+        body   : JSON.stringify({ sessionId }),
+      }).catch(() => {});
 
-      // Open app via deep link
-      window.location.href = data.deep_link;
+      // Open app — use deep_link if available, else fallback
+      const deepLink = data.deep_link || `zkpapp://auth?session=${sessionId}&claim=${claimType}`;
+      window.location.href = deepLink;
 
-      // Start polling — when user comes back, we check
+      // Poll when user returns to browser
+      clearInterval(pollInterval);
       pollInterval = setInterval(checkStatus, 2000);
 
       showToast('Opening ZKP App…');
@@ -509,6 +497,5 @@
     toastTimer = setTimeout(() => toast.classList.add('hidden'), 3000);
   }
   </script>
-
 </body>
 </html>

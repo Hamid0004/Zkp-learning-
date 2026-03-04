@@ -6,25 +6,19 @@ const crypto  = require('crypto');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ─── Constants ────────────────────────────────────────────────
-const SESSION_TTL_MS   = 10 * 60 * 1000;   // 10 min
-const SCAN_TTL_MS      = 2  * 60 * 1000;   // 2 min after scan
-const CLEANUP_INTERVAL = 60 * 1000;         // cleanup every 1 min
+const SESSION_TTL_MS   = 10 * 60 * 1000;
+const SCAN_TTL_MS      = 2  * 60 * 1000;
+const CLEANUP_INTERVAL = 60 * 1000;
+const CLAIM_TYPES      = ['zkauth', 'age', 'dob', 'identity'];
 
-// Valid claim types for ZKAuth passkey model
-const CLAIM_TYPES = ['zkauth', 'age', 'dob', 'identity'];
-
-// Session states (explicit state machine)
 const STATE = {
-  PENDING:   'pending',    // QR generated, waiting for scan
-  SCANNING:  'scanning',   // App opened, about to prove
-  PROVING:   'proving',    // Biometric done, proof generating
-  COMPLETED: 'completed',  // Proof uploaded, website can login
-  EXPIRED:   'expired',
-  FAILED:    'failed',
+  PENDING  : 'pending',
+  SCANNING : 'scanning',
+  PROVING  : 'proving',
+  COMPLETED: 'completed',
+  EXPIRED  : 'expired',
 };
 
-// ─── Middleware ────────────────────────────────────────────────
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
@@ -34,57 +28,38 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── In-memory store ──────────────────────────────────────────
 const sessions = new Map();
 const stats = {
   totalSessions : 0,
   totalProofs   : 0,
-  proofTimes    : [],   // rolling last 100
+  proofTimes    : [],
   get avgProofTime() {
     if (!this.proofTimes.length) return 0;
     return Math.round(this.proofTimes.reduce((a, b) => a + b, 0) / this.proofTimes.length);
   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────
 function makeChallenge() { return crypto.randomBytes(32).toString('hex'); }
-function makeSessionId()  { return crypto.randomUUID(); }
-
 function buildDeepLink(sessionId, challenge, claimType) {
-  // zkpapp://auth?session=<id>&challenge=<hex>&claim=<type>
   const base = process.env.DEEP_LINK_SCHEME || 'zkpapp';
   return `${base}://auth?session=${sessionId}&challenge=${challenge}&claim=${claimType}`;
 }
-
-function buildQRPayload(session) {
-  return Buffer.from(JSON.stringify({
-    sessionId  : session.sessionId,
-    domain     : session.domain,
-    challenge  : session.challenge,
-    claimType  : session.claimType,
-    deepLink   : session.deepLink,
-    timestamp  : Date.now(),
-  })).toString('base64');
+function log(level, msg, extra = '') {
+  const icons = { info: '✅', warn: '⚠️', error: '❌' };
+  console.log(`${icons[level] || '📋'} [${new Date().toISOString()}] ${msg} ${extra}`);
 }
-
 function recordProofTime(ms) {
   if (typeof ms !== 'number') return;
   stats.proofTimes.push(ms);
   if (stats.proofTimes.length > 100) stats.proofTimes.shift();
 }
 
-function log(level, msg, extra = '') {
-  const icons = { info: '✅', warn: '⚠️', error: '❌', debug: '🔍' };
-  console.log(`${icons[level] || '📋'} [${new Date().toISOString()}] ${msg} ${extra}`);
-}
-
-// ─── Session factory ──────────────────────────────────────────
 function createSession({ domain, claimType }) {
-  const sessionId = makeSessionId();
+  const sessionId = crypto.randomUUID();
   const challenge = makeChallenge();
   const deepLink  = buildDeepLink(sessionId, challenge, claimType);
 
-  const session = {
+  return {
     sessionId,
     domain,
     claimType,
@@ -94,32 +69,19 @@ function createSession({ domain, claimType }) {
     proof     : null,
     nullifier : null,
     metadata  : null,
+    claimResult: null,
     createdAt : Date.now(),
     expiresAt : Date.now() + SESSION_TTL_MS,
     scannedAt : null,
     verifiedAt: null,
-    failReason: null,
   };
-
-  session.qrData = buildQRPayload(session);
-  return session;
 }
 
 // ─── Routes ───────────────────────────────────────────────────
 
-// Health
-app.get('/health', (req, res) => res.json({
-  status        : 'ok',
-  uptime        : Math.round(process.uptime()),
-  memory_mb     : Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-  activeSessions: sessions.size,
-  totalProofs   : stats.totalProofs,
-}));
-
-// Root info
 app.get('/', (req, res) => res.json({
   name       : 'zkAuth Relay Server',
-  version    : '2.0.0',
+  version    : '2.1.0',
   status     : 'online',
   environment: process.env.NODE_ENV || 'development',
   timestamp  : new Date().toISOString(),
@@ -131,55 +93,65 @@ app.get('/', (req, res) => res.json({
   },
 }));
 
+app.get('/health', (req, res) => res.json({
+  status        : 'ok',
+  uptime        : Math.round(process.uptime()),
+  memory_mb     : Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+  activeSessions: sessions.size,
+  totalProofs   : stats.totalProofs,
+}));
+
 // ── START SESSION ─────────────────────────────────────────────
-// GET /api/start-session?domain=example.com&claim=zkauth
 app.get('/api/start-session', (req, res) => {
   const domain    = req.query.domain || 'unknown';
   const claimType = CLAIM_TYPES.includes(req.query.claim)
-    ? req.query.claim
-    : 'zkauth';                         // default = full zkauth
+    ? req.query.claim : 'zkauth';
 
   const session = createSession({ domain, claimType });
   sessions.set(session.sessionId, session);
   stats.totalSessions++;
 
-  // Auto-expire
   setTimeout(() => {
     const s = sessions.get(session.sessionId);
     if (s && s.status === STATE.PENDING) {
       s.status = STATE.EXPIRED;
       sessions.set(session.sessionId, s);
-      log('info', `Session expired: ${session.sessionId}`);
     }
   }, SESSION_TTL_MS);
 
-  log('info', `Session created: ${session.sessionId}`, `| domain:${domain} | claim:${claimType}`);
+  log('info', `Session created: ${session.sessionId}`, `| ${domain} | ${claimType}`);
 
+  // ✅ Return BOTH old format + new format — nothing breaks
   res.json({
-    session_id  : session.sessionId,
-    challenge   : session.challenge,
-    claim_type  : session.claimType,
-    deep_link   : session.deepLink,       // ← for mobile same-device
-    qr_data     : session.qrData,         // ← for desktop QR
-    expires_in  : SESSION_TTL_MS / 1000,
+    // Old fields (original app uses these)
+    session_id : session.sessionId,
+    challenge  : session.challenge,
+    expires_in : SESSION_TTL_MS / 1000,
+    qr_data    : Buffer.from(JSON.stringify({
+      sessionId : session.sessionId,
+      domain,
+      challenge : session.challenge,
+      timestamp : Date.now(),
+    })).toString('base64'),
+
+    // New fields (passkey flow uses these)
+    claim_type : session.claimType,
+    deep_link  : session.deepLink,
   });
 });
 
 // ── SCAN NOTIFY ───────────────────────────────────────────────
-// POST /api/scan-notify  { sessionId }
-// App calls this immediately on QR scan (before biometric)
-// Website can show "Scan detected — waiting for biometric..."
 app.post('/api/scan-notify', (req, res) => {
   const { sessionId } = req.body;
   const session = sessions.get(sessionId);
 
   if (!session) return res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
-  if (session.status !== STATE.PENDING) return res.status(409).json({ error: 'Already scanned', error_code: 'INVALID_STATE' });
-  if (Date.now() > session.expiresAt) return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
+  if (session.status === STATE.COMPLETED) return res.status(409).json({ error: 'Already completed', error_code: 'INVALID_STATE' });
+  if (Date.now() > session.expiresAt)    return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
 
   session.status    = STATE.SCANNING;
   session.scannedAt = Date.now();
-  session.expiresAt = Date.now() + SCAN_TTL_MS;  // shrink window after scan
+  session.expiresAt = Date.now() + SCAN_TTL_MS;
   sessions.set(sessionId, session);
 
   log('info', `Scan detected: ${sessionId}`);
@@ -187,25 +159,21 @@ app.post('/api/scan-notify', (req, res) => {
 });
 
 // ── PROVING NOTIFY ────────────────────────────────────────────
-// POST /api/proving-notify  { sessionId }
-// App calls this after biometric OK, while proof is generating
 app.post('/api/proving-notify', (req, res) => {
   const { sessionId } = req.body;
   const session = sessions.get(sessionId);
 
   if (!session) return res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
-  if (![STATE.SCANNING, STATE.PENDING].includes(session.status))
-    return res.status(409).json({ error: 'Invalid state', error_code: 'INVALID_STATE' });
+  if (session.status === STATE.COMPLETED) return res.status(409).json({ error: 'Already completed', error_code: 'INVALID_STATE' });
 
   session.status = STATE.PROVING;
   sessions.set(sessionId, session);
 
-  log('info', `Proving started: ${sessionId}`);
+  log('info', `Proving: ${sessionId}`);
   res.json({ success: true, status: STATE.PROVING });
 });
 
 // ── UPLOAD PROOF ──────────────────────────────────────────────
-// POST /api/upload-proof  { sessionId, proof, nullifier, metadata, claimResult }
 app.post('/api/upload-proof', (req, res) => {
   const { sessionId, session_id, proof, proof_data, nullifier, metadata, claimResult } = req.body;
   const sid       = sessionId || session_id;
@@ -215,43 +183,35 @@ app.post('/api/upload-proof', (req, res) => {
   if (!proofData) return res.status(400).json({ error: 'Missing proof data',  error_code: 'MISSING_PROOF' });
 
   const session = sessions.get(sid);
-  if (!session)                          return res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
+  if (!session)                           return res.status(404).json({ error: 'Session not found',      error_code: 'SESSION_NOT_FOUND' });
   if (session.status === STATE.COMPLETED) return res.status(409).json({ error: 'Proof already submitted', error_code: 'DUPLICATE_PROOF' });
-  if (session.status === STATE.EXPIRED)   return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
-  if (Date.now() > session.expiresAt)   {
-    session.status = STATE.EXPIRED;
-    sessions.set(sid, session);
+  if (session.status === STATE.EXPIRED || Date.now() > session.expiresAt)
     return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
-  }
 
-  // claimResult = what the ZK proof actually proved
-  // e.g. { is_adult: true } or { passport_valid: true } — website reads this
   session.status      = STATE.COMPLETED;
   session.proof       = proofData;
-  session.nullifier   = nullifier   || null;
-  session.metadata    = metadata    || null;
-  session.claimResult = claimResult || null;   // ← NEW: structured claim output
+  session.nullifier   = nullifier    || null;
+  session.metadata    = metadata     || null;
+  session.claimResult = claimResult  || null;
   session.verifiedAt  = Date.now();
-
   sessions.set(sid, session);
+
   stats.totalProofs++;
   recordProofTime(metadata?.generation_time_ms);
 
-  log('info', `Proof verified: ${sid}`, `| ${metadata?.generation_time_ms ?? 'N/A'}ms | claim:${session.claimType}`);
+  log('info', `Proof verified: ${sid}`, `| ${metadata?.generation_time_ms ?? 'N/A'}ms`);
 
   res.json({
-    success     : true,
-    message     : 'Proof verified successfully',
-    session_id  : sid,
-    verified_at : session.verifiedAt,
+    success    : true,
+    message    : 'Proof verified successfully',
+    session_id : sid,
+    verified_at: session.verifiedAt,
   });
 });
 
 // ── POLL STATUS ───────────────────────────────────────────────
-// GET /api/poll-status/:session_id
 app.get('/api/poll-status/:session_id', (req, res) => {
   const session = sessions.get(req.params.session_id);
-
   if (!session) return res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
 
   const resp = {
@@ -268,7 +228,7 @@ app.get('/api/poll-status/:session_id', (req, res) => {
     resp.proof        = session.proof;
     resp.nullifier    = session.nullifier;
     resp.metadata     = session.metadata;
-    resp.claim_result = session.claimResult;  // ← website reads: { is_adult: true } etc
+    resp.claim_result = session.claimResult;
     resp.verified_at  = session.verifiedAt;
   }
 
@@ -285,29 +245,25 @@ app.get('/api/stats', (req, res) => res.json({
   memory_usage_mb      : Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
 }));
 
-// ── DELETE SESSION ────────────────────────────────────────────
 app.delete('/api/session/:session_id', (req, res) => {
   if (sessions.delete(req.params.session_id)) {
-    log('info', `Manually deleted: ${req.params.session_id}`);
+    log('info', `Deleted: ${req.params.session_id}`);
     res.json({ success: true });
   } else {
     res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
   }
 });
 
-// Dashboard
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// ─── Periodic Cleanup ─────────────────────────────────────────
+// ─── Cleanup ──────────────────────────────────────────────────
 setInterval(() => {
-  const now     = Date.now();
-  let   cleaned = 0;
+  const now = Date.now(); let cleaned = 0;
   for (const [id, s] of sessions.entries()) {
     if (now > s.expiresAt && s.status !== STATE.COMPLETED) {
-      sessions.delete(id);
-      cleaned++;
+      sessions.delete(id); cleaned++;
     }
   }
   if (cleaned > 0) log('info', `Cleaned ${cleaned} expired sessions`);
@@ -315,14 +271,12 @@ setInterval(() => {
 
 // ─── Boot ─────────────────────────────────────────────────────
 const server = app.listen(PORT, '0.0.0.0', () => {
-  log('info', `zkAuth Relay v2 running on port ${PORT}`);
+  log('info', `zkAuth Relay v2.1 on port ${PORT}`);
   log('info', `Health: http://localhost:${PORT}/health`);
-  log('info', `Stats:  http://localhost:${PORT}/api/stats`);
 });
 
 process.on('SIGTERM', () => {
-  log('info', 'SIGTERM — shutting down gracefully...');
   server.close(() => { log('info', 'Server closed'); process.exit(0); });
 });
-process.on('uncaughtException',   err => log('error', 'Uncaught Exception:', err.message));
-process.on('unhandledRejection',  err => log('error', 'Unhandled Rejection:', err));
+process.on('uncaughtException',  err => log('error', 'Uncaught:', err.message));
+process.on('unhandledRejection', err => log('error', 'Rejection:', err));
