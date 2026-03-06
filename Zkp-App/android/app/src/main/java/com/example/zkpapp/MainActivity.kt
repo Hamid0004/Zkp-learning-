@@ -6,7 +6,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityOptionsCompat // 👈 Ye import add kiya transition ke liye
+import androidx.core.app.ActivityOptionsCompat
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -71,7 +71,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 },
                 onScanPassport = {
-                    launchActivitySmoothly(Intent(this, PassportActivity::class.java)) // 👈
+                    // 🎯 FIX APPLIED HERE: PassportActivity -> TierSelectionActivity
+                    launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java)) 
                 },
                 onOfflineIdentity = {
                     if (IdentityStorage.hasIdentity()) {
@@ -485,5 +486,5 @@ private fun AmbientOrbs() {
             radius = size.width * 0.55f,
             center = Offset(size.width * 0.1f, size.height * 0.9f),
         )
-    }
+    }   
 }
