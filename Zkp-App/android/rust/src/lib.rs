@@ -17,11 +17,26 @@ fn init_logger() {
     });
 }
 
+// ── Modules ───────────────────────────────────────────────────────────────────
+// passport_security.rs defines its OWN #[no_mangle] JNI functions directly:
+//   Java_com_example_zkpapp_SecurityGate_warmupCircuit
+//   Java_com_example_zkpapp_SecurityGate_generateProof
+//   Java_com_example_zkpapp_SecurityGate_generateSimulatedProof
+//   Java_com_example_zkpapp_SecurityGate_generateClaimProof
+//   Java_com_example_zkpapp_SecurityGate_generateSimulatedClaimProof
+//
+// `pub mod passport_security` here compiles the module — its #[no_mangle]
+// symbols are exported into the .so automatically. No wrapper needed in lib.rs.
+
 pub mod offline_identity;
 pub mod passport_security;
 pub mod zk_auth;
 pub mod proof_bench;
 pub mod secure_vault;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ZkAuthManager — app init
+// ══════════════════════════════════════════════════════════════════════════════
 
 #[no_mangle]
 pub extern "C" fn Java_com_example_zkpapp_ZkAuthManager_initRust(
@@ -29,31 +44,12 @@ pub extern "C" fn Java_com_example_zkpapp_ZkAuthManager_initRust(
     _class: JClass,
 ) {
     init_logger();
-    info!("Rust ZKP Engine Initialized!");
+    info!("Rust ZKP Engine v5.1 Initialized");
 }
 
-#[no_mangle]
-pub extern "C" fn Java_com_example_zkpapp_ZkAuthManager_generateZkpProof(
-    mut env: JNIEnv,
-    _class: JClass,
-    identity_json: JString,
-) -> jstring {
-    init_logger();
-    let input: String = match env.get_string(&identity_json) {
-        Ok(s)  => s.into(),
-        Err(e) => {
-            error!("generateZkpProof: Failed to read input: {}", e);
-            return env.new_string("ERROR: invalid input")
-                .map(|s| s.into_raw())
-                .unwrap_or(std::ptr::null_mut());
-        }
-    };
-    info!("Generating Proof for: {}", input);
-    let response = format!("Proof Generated for {}", input);
-    env.new_string(response)
-        .map(|s| s.into_raw())
-        .unwrap_or(std::ptr::null_mut())
-}
+// ══════════════════════════════════════════════════════════════════════════════
+// ZkpJni — Benchmark functions
+// ══════════════════════════════════════════════════════════════════════════════
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_zkpapp_ZkpJni_runProofBenchmark(
@@ -63,8 +59,12 @@ pub extern "system" fn Java_com_example_zkpapp_ZkpJni_runProofBenchmark(
     init_logger();
     info!("Benchmark (single run) started");
     let result = proof_bench::run_benchmark();
-    info!("Done proof={}ms verify={}ms witness={}us size={}bytes memory={}KB valid={}", result.proof_gen_ms, result.verify_ms, result.witness_gen_us, result.proof_size_bytes, result.memory_kb, result.is_valid);
-    match build_result(&mut env, result) {
+    info!(
+        "Done proof={}ms verify={}ms witness={}us size={}bytes memory={}KB valid={}",
+        result.proof_gen_ms, result.verify_ms, result.witness_gen_us,
+        result.proof_size_bytes, result.memory_kb, result.is_valid
+    );
+    match build_benchmark_result(&mut env, result) {
         Ok(obj) => obj,
         Err(e)  => { error!("JNI build failed: {}", e); *JObject::null() }
     }
@@ -78,30 +78,45 @@ pub extern "system" fn Java_com_example_zkpapp_ZkpJni_runProofBenchmarkMedian(
     init_logger();
     info!("Benchmark (median 3 runs) started");
     let result = proof_bench::run_benchmark_median();
-    info!("Median Done proof={}ms verify={}ms witness={}us size={}bytes memory={}KB valid={}", result.proof_gen_ms, result.verify_ms, result.witness_gen_us, result.proof_size_bytes, result.memory_kb, result.is_valid);
-    match build_result(&mut env, result) {
+    info!(
+        "Median Done proof={}ms verify={}ms witness={}us size={}bytes memory={}KB valid={}",
+        result.proof_gen_ms, result.verify_ms, result.witness_gen_us,
+        result.proof_size_bytes, result.memory_kb, result.is_valid
+    );
+    match build_benchmark_result(&mut env, result) {
         Ok(obj) => obj,
         Err(e)  => { error!("JNI build failed: {}", e); *JObject::null() }
     }
 }
 
-fn build_result(env: &mut JNIEnv, r: proof_bench::BenchmarkResult) -> Result<jobject, jni::errors::Error> {
+fn build_benchmark_result(
+    env: &mut JNIEnv,
+    r: proof_bench::BenchmarkResult,
+) -> Result<jobject, jni::errors::Error> {
     let class      = env.find_class("com/example/zkpapp/ProofBenchmarkResult")?;
     let error_jstr = env.new_string(&r.error_msg)?;
-    let obj = env.new_object(class, "(JJJJJIZLjava/lang/String;JJ)V", &[
-        JValue::Long(r.circuit_setup_ms as i64),
-        JValue::Long(r.witness_gen_us   as i64),
-        JValue::Long(r.proof_gen_ms     as i64),
-        JValue::Long(r.verify_ms        as i64),
-        JValue::Long(r.proof_size_bytes as i64),
-        JValue::Int(r.constraint_count  as i32),
-        JValue::Bool(r.is_valid         as u8),
-        JValue::Object(&error_jstr),
-        JValue::Long(r.memory_kb        as i64),
-        JValue::Long(r.peak_memory_kb   as i64),
-    ])?;
+    let obj = env.new_object(
+        class,
+        "(JJJJJIZLjava/lang/String;JJ)V",
+        &[
+            JValue::Long(r.circuit_setup_ms as i64),
+            JValue::Long(r.witness_gen_us   as i64),
+            JValue::Long(r.proof_gen_ms     as i64),
+            JValue::Long(r.verify_ms        as i64),
+            JValue::Long(r.proof_size_bytes as i64),
+            JValue::Int(r.constraint_count  as i32),
+            JValue::Bool(r.is_valid         as u8),
+            JValue::Object(&error_jstr),
+            JValue::Long(r.memory_kb        as i64),
+            JValue::Long(r.peak_memory_kb   as i64),
+        ],
+    )?;
     Ok(*obj)
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SecureVaultJni
+// ══════════════════════════════════════════════════════════════════════════════
 
 #[no_mangle]
 pub extern "system" fn Java_com_example_zkpapp_SecureVaultJni_generateSecureIdentityProof<'local>(
@@ -110,7 +125,6 @@ pub extern "system" fn Java_com_example_zkpapp_SecureVaultJni_generateSecureIden
     unlocked_seed_bytes: JByteArray<'local>,
 ) -> jbyteArray {
     init_logger();
-
     let seed_bytes: Vec<u8> = match env.convert_byte_array(&unlocked_seed_bytes) {
         Ok(b)  => b,
         Err(e) => {
@@ -118,14 +132,11 @@ pub extern "system" fn Java_com_example_zkpapp_SecureVaultJni_generateSecureIden
             return return_error_bytes(&mut env, b"JNI_ERROR:seed_read_failed");
         }
     };
-
     if seed_bytes.is_empty() {
         warn!("generateSecureIdentityProof: empty seed");
         return return_error_bytes(&mut env, b"JNI_ERROR:empty_seed");
     }
-
     let output_bytes = secure_vault::process_secure_seed(seed_bytes);
-
     match env.byte_array_from_slice(&output_bytes) {
         Ok(arr) => arr.into_raw(),
         Err(e)  => {

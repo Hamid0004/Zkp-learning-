@@ -15,10 +15,7 @@ import java.util.concurrent.TimeUnit
 
 object ZkAuthManager {
 
-    // ✅ UPDATED: Railway Production URL (Always Online)
-    private const val BASE_URL = "https://zkp-identity-production.up.railway.app/"
-
-    // 🔄 FALLBACK: GitHub Codespaces URL (if Railway fails during development)
+    private const val BASE_URL      = "https://zkp-identity-production.up.railway.app/"
     private const val CODESPACES_URL = "https://crispy-dollop-97xj7vjgx4ph9pgg-3000.app.github.dev/"
 
     @Volatile
@@ -51,7 +48,6 @@ object ZkAuthManager {
         running = true
 
         try {
-            // 1. Internet Check
             if (!NetworkUtils.isInternetAvailable(context)) {
                 onError("❌ No Internet")
                 return
@@ -59,26 +55,33 @@ object ZkAuthManager {
 
             onStatus("🦁 Fetching Passport Identity...")
 
-            // 2. Data Retrieval (Secure Storage)
+            // [FIX 1 & 2] Fetch secret securely using CharArray and convert to String safely
             val secret = withContext(Dispatchers.IO) {
                 if (!IdentityStorage.hasIdentity()) {
                     throw Exception("⚠️ No Passport Data! Please Scan NFC First.")
                 }
-                IdentityStorage.getSecret()
+                
+                val secretChars = IdentityStorage.getSecretChars()
                     ?: throw Exception("⚠️ Identity data missing. Please scan passport again.")
+                
+                // Convert to String for ZkAuth, then instantly wipe the temporary CharArray
+                String(secretChars).also {
+                    secretChars.fill('\u0000')
+                }
             }
-            val domain = IdentityStorage.getDomain()
+
+            // [FIX 3] Handle nullable domain safely
+            val domain = IdentityStorage.getVerifierDomain()
+                ?: throw Exception("⚠️ Verifier Domain missing. Please select a valid domain first.")
 
             onStatus("⚙️ Generating ZK Proof...")
 
-            // 3. Generate Proof
             val authResult = ZkAuth.authenticate(
-                secret = secret,
-                domain = domain,
+                secret    = secret,
+                domain    = domain,
                 challenge = sessionId
             )
 
-            // 4. Handle Result
             when (authResult) {
                 is ZkAuthResult.Error -> {
                     Log.e("ZkAuth", "Proof Gen Failed: ${authResult.code}")
@@ -88,25 +91,24 @@ object ZkAuthManager {
 
                 is ZkAuthResult.Success -> {
                     val proofData = authResult.result
-                    val meta = proofData.metadata
+                    val meta      = proofData.metadata
 
                     onStatus("⚡ Proof in ${meta.generation_time_ms}ms\n☁️ Uploading...")
 
-                    // 5. Upload to Server
                     val response = withContext(Dispatchers.IO) {
                         api.uploadProof(
                             ProofRequest(
                                 session_id = sessionId,
-                                nullifier = proofData.nullifier,
-                                proof = proofData.proof,
-                                metadata = mapOf(
+                                nullifier  = proofData.nullifier,
+                                proof      = proofData.proof,
+                                metadata   = mapOf(
                                     "generation_time_ms" to meta.generation_time_ms.toString(),
-                                    "proof_size_bytes" to meta.proof_size_bytes.toString(),
-                                    "circuit_version" to meta.circuit_version,
-                                    "circuit_hash" to meta.circuit_hash,
-                                    "num_gates" to meta.num_gates.toString(),
-                                    "degree_bits" to meta.degree_bits.toString(),
-                                    "proof_id" to meta.proof_id.toString()
+                                    "proof_size_bytes"   to meta.proof_size_bytes.toString(),
+                                    "circuit_version"    to meta.circuit_version,
+                                    "circuit_hash"       to meta.circuit_hash,
+                                    "num_gates"          to meta.num_gates.toString(),
+                                    "degree_bits"        to meta.degree_bits.toString(),
+                                    "proof_id"           to meta.proof_id.toString()
                                 )
                             )
                         )
@@ -129,9 +131,9 @@ object ZkAuthManager {
     }
 
     private fun mapError(code: Int) = when (code) {
-        401 -> "❌ Server Private"
-        404 -> "❌ Session Expired (Try Refreshing Website)"
-        502 -> "❌ Invalid QR"
+        401  -> "❌ Server Private"
+        404  -> "❌ Session Expired (Try Refreshing Website)"
+        502  -> "❌ Invalid QR"
         else -> "❌ Server Error ($code)"
     }
 }

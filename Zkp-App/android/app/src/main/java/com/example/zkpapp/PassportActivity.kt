@@ -81,10 +81,23 @@ class PassportActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode != RESULT_OK) return@registerForActivityResult
             val rawMrz = result.data?.getStringExtra("MRZ_DATA") ?: return@registerForActivityResult
-            val mrzInfo = MrzInfo(rawMrz, "PENDING", "PENDING", "PENDING")
-            session = PassportSession(mrzInfo, SessionState.NFC_READY)
-            updateStatus("📲 HOLD PHONE TO PASSPORT", colorCyan, "NFC READY — CHIP DETECTED")
-            updateStepBar(3)
+
+            // [SESSION v2.0] MrzInfo.fromRaw() — no more PENDING placeholders
+            // Parses documentNumber, DOB, expiry, nationality, gender from raw MRZ immediately
+            val mrzInfo = MrzInfo.fromRaw(rawMrz)
+            val validationError = mrzInfo.validate()
+            if (validationError != null) {
+                showToast("⚠️ MRZ Error: $validationError")
+                return@registerForActivityResult
+            }
+            session = PassportSession(
+                mrzInfo   = mrzInfo,
+                state     = SessionState.MRZ_SCANNED,
+                tier      = mrzInfo.docType   // DocumentTier.PASSPORT or NATIONAL_ID
+            )
+            // [SESSION v2.0] DRY strings from SessionState — no hardcoded text
+            updateStatus(session.state.displayString, colorCyan, session.state.statusSub)
+            updateStepBar(session.state.stepIndex)
         }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -101,6 +114,11 @@ class PassportActivity : AppCompatActivity() {
             updateStatus("⚠️ NFC NOT AVAILABLE", colorRed, "SIMULATION MODE ONLY")
             btnScanMrz.isEnabled = false
             btnScanMrz.alpha = 0.4f
+        }
+
+        // Warmup Rust ZK circuit on app start — saves ~600ms on first proof
+        lifecycleScope.launch(Dispatchers.IO) {
+            IdentityStorage.warmup()
         }
     }
 
@@ -158,8 +176,11 @@ class PassportActivity : AppCompatActivity() {
         progressBar.visibility = View.VISIBLE
         btnScanMrz.isEnabled  = false
         btnSimulate.isEnabled = false
-        updateStatus("🔄 READING CHIP DATA...", colorCyan, "BAC AUTHENTICATION IN PROGRESS")
-        updateStepBar(2)
+
+        // [SESSION v2.0] Advance to CONNECTING state — DRY status strings
+        session = session.copy(state = SessionState.CONNECTING)
+        updateStatus(session.state.displayString, colorCyan, session.state.statusSub)
+        updateStepBar(session.state.stepIndex)
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -184,14 +205,17 @@ class PassportActivity : AppCompatActivity() {
         progressBar.visibility = View.GONE
         btnScanMrz.isEnabled  = true
         btnSimulate.isEnabled = true
+
+        // [SESSION v2.0] DONE state
         session = session.copy(state = SessionState.DONE)
         performHapticFeedback()
-        updateStepBar(4)
+        updateStatus(session.state.displayString, colorGreen, session.state.statusSub)
+        updateStepBar(session.state.stepIndex)
 
-        updateStatus("✅ DATA EXTRACTED", colorGreen, "PASSPORT CHIP READ SUCCESSFUL")
-
-        // Photo
-        data.facePhoto?.let {
+        // Photo — use PassportData.getCachedPhoto() first (survives Parcel roundtrip)
+        val photo = data.facePhoto
+            ?: PassportData.getCachedPhoto(data.documentNumber)
+        photo?.let {
             val scaled = Bitmap.createScaledBitmap(it, 300, 400, true)
             photoView.setImageBitmap(scaled)
             photoView.visibility = View.VISIBLE
@@ -201,7 +225,7 @@ class PassportActivity : AppCompatActivity() {
         // Identity
         tvName.text        = "${data.firstName} ${data.lastName}"
         tvDocNum.text      = data.documentNumber
-        tvNationality.text = "🇵🇰 PAKISTAN"
+        tvNationality.text = nationalityDisplay(data.nationality)
         val sodSize = data.sodRaw?.size ?: 0
         tvSodStatus.text = if (sodSize > 0) "✅ FOUND · ${sodSize}B" else "❌ MISSING"
         tvSodStatus.setTextColor(if (sodSize > 0) colorGreen else colorRed)
@@ -209,62 +233,101 @@ class PassportActivity : AppCompatActivity() {
         cardIdentity.visibility = View.VISIBLE
         animateFadeIn(cardIdentity)
 
-        // Rust verification
+        // Save to IdentityStorage BEFORE proof generation
+        // [PassportData v2.0] Use computed properties — correct hex, not Base64
+        IdentityStorage.saveIdentity(
+            secret      = data.dg1SecretHex,     // SHA-256(dg1Bytes) — not guessable
+            country     = data.nationality.ifEmpty { "PAK" },
+            docNumber   = data.documentNumber,
+            fName       = data.firstName,
+            lName       = data.lastName,
+            nationality = data.nationality,
+            dob         = data.dateOfBirth,
+            expiry      = data.expiryDate,
+            dg1         = data.dg1Hex,            // hex (not Base64)
+            sod         = data.sodHex,            // hex (not Base64)
+            mrz         = data.mrzLine.ifEmpty { session.mrzInfo?.raw ?: "" },
+            dsCert      = data.dsCertHex,         // real DS cert or null
+            domain      = "zkpapp.local"
+        )
+
+        // [SESSION v2.0] Mark ZKP_GENERATING before Rust starts
         rustJob?.cancel()
-        rustJob = lifecycleScope.launch(Dispatchers.IO) {
-            val proofStart = System.currentTimeMillis()
-            val rustResult = SecurityGate.sendToRustForProof(data)
-            val proofMs    = System.currentTimeMillis() - proofStart
+        session = session.copy(state = SessionState.ZKP_GENERATING)
+        updateStatus(session.state.displayString, colorCyan, session.state.statusSub)
+        updateStepBar(session.state.stepIndex)
 
-            withContext(Dispatchers.Main) {
-                if (isFinishing || isDestroyed) return@withContext
+        rustJob = lifecycleScope.launch {
+            try {
+                IdentityStorage.setVerifierDomain("zkpapp.local")
 
-                updateStepBar(5)
+                val rustResult = SecurityGate.generateClaim(
+                    claimType = "is_adult",
+                    domain    = "zkpapp.local",
+                    context   = this@PassportActivity
+                )
+
+                if (isFinishing || isDestroyed) return@launch
 
                 when (rustResult) {
                     is SecurityGate.ProofResult.Success -> {
-                        showRustSuccess(data, rustResult.json, proofMs)
-                        val secret = "${data.documentNumber}-ZKP-SECRET-KEY"
-                        IdentityStorage.saveIdentity(secret, "PK_PASSPORT")
-                        showToast("🦁 Identity Secured!")
-                        lifecycleScope.launch {
-                            delay(2500)
-                            finish()
-                        }
+                        // [SESSION v2.0] ZKP_READY — proof cached, websites can auth
+                        session = session.copy(state = SessionState.ZKP_READY)
+                        updateStatus(session.state.displayString, colorGreen, session.state.statusSub)
+                        updateStepBar(session.state.stepIndex)
+
+                        showRustSuccess(data, rustResult.result)
+                        showToast("🦁 ZK Proof Ready · ${session.minutesRemaining}min session")
                     }
                     is SecurityGate.ProofResult.Failure -> {
                         showRustError(rustResult.reason)
                         performErrorVibration()
                     }
                 }
+            } catch (e: Exception) {
+                if (!isFinishing && !isDestroyed) {
+                    showRustError(e.message ?: "Proof generation failed")
+                    performErrorVibration()
+                }
+            } finally {
+                isNfcBusy.set(false)
             }
         }
     }
 
-    private fun showRustSuccess(data: PassportData, json: String, proofMs: Long) {
-        updateStatus("✅ PASSPORT AUTHENTIC", colorGreen, "RUST VERIFIED · ZK PROOF GENERATED")
+    private fun showRustSuccess(data: PassportData, result: SecurityGate.PassportProofResult) {
+        val modeLabel = if (result.inputMode == "NFC_PASSPORT") "REAL NFC" else "SIMULATED"
+        updateStatus("✅ PASSPORT AUTHENTIC", colorGreen, "$modeLabel · ZK PROOF GENERATED")
 
         // Proof bar
         cardProof.visibility = View.VISIBLE
-        tvProofTime.text = "${proofMs}ms"
-        tvProofHash.text = "Plonky2 · SHA256 · aarch64 · ${data.documentNumber}"
+        tvProofTime.text = "${result.zkProofMs}ms"
+        val nullifierPrefix = result.nullifier.take(16).uppercase().ifEmpty { "ZK COMMITTED" }
+        tvProofHash.text = "Plonky2 · v5.1 · $nullifierPrefix…"
         animateFadeIn(cardProof)
 
         // Integrity card
         cardIntegrity.visibility = View.VISIBLE
         tvIntegrityRows.text =
-            "👤  ${data.firstName} ${data.lastName}\n" +
-            "📄  ${data.documentNumber}\n" +
-            "🔒  Data Integrity: PASS"
+            "👤  ${result.holderName.ifEmpty { "${data.firstName} ${data.lastName}" }}\n" +
+            "🔒  Integrity:  ${result.integrityCheck}\n" +
+            "🛡️  Trust:      ${result.trustLevel}"
         animateFadeIn(cardIntegrity)
 
         // Crypto card
+        val zkOutput  = result.zkOutput
+        val proofType = if (zkOutput != null) "RECURSIVE v${zkOutput.version}" else "NONE"
         cardCrypto.visibility = View.VISIBLE
         tvCryptoRows.text =
-            "🛡️  Integrity:  PASS\n" +
-            "✅  Signature:  VERIFIED\n" +
-            "🔑  Algorithm: RSA-2048\n" +
-            "⚡  ZK Proof:  GENERATED"
+            "🛡️  Integrity:  ${result.integrityCheck}\n" +
+            "✅  Signature:  ${result.signatureCheck}\n" +
+            "🔑  Algorithm:  RSA-2048 + Poseidon\n" +
+            "⚡  ZK Proof:   ${result.zkProofStatus}\n" +
+            "📦  Proof Type: $proofType\n" +
+            if (zkOutput != null) "⏰  Expires:    ${
+                java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                    .format(java.util.Date(zkOutput.validUntil * 1000))
+            }" else "🔗  HW Binding: NONE"
         animateFadeIn(cardCrypto)
 
         scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
@@ -276,11 +339,22 @@ class PassportActivity : AppCompatActivity() {
         tvIntegrityRows.text = "❌ Verification failed\n$reason"
     }
 
+    // Nationality flag + name lookup
+    private fun nationalityDisplay(code: String): String {
+        val map = mapOf(
+            "PAK" to "🇵🇰 PAKISTAN",  "USA" to "🇺🇸 USA",
+            "GBR" to "🇬🇧 UK",        "ARE" to "🇦🇪 UAE",
+            "SAU" to "🇸🇦 SAUDI",     "IND" to "🇮🇳 INDIA",
+            "DEU" to "🇩🇪 GERMANY",   "FRA" to "🇫🇷 FRANCE",
+            "CHN" to "🇨🇳 CHINA",     "TUR" to "🇹🇷 TURKEY"
+        )
+        return map[code.uppercase()] ?: "🌐 ${code.uppercase()}"
+    }
+
     private fun handleError(e: Exception) {
         progressBar.visibility = View.GONE
         btnScanMrz.isEnabled  = true
         btnSimulate.isEnabled = true
-        session = session.copy(state = SessionState.ERROR)
 
         val (msg, sub) = when (e) {
             is TagLostException -> "⚠️ CHIP CONNECTION LOST" to "Hold phone steady & retry"
@@ -288,6 +362,8 @@ class PassportActivity : AppCompatActivity() {
             is SecurityException-> "❌ SECURITY ERROR"      to (e.message ?: "")
             else                -> "❌ ENGINE ERROR"         to (e.localizedMessage ?: "Unknown")
         }
+        // [SESSION v2.0] withError() — preserves mrzInfo, sets ERROR state + message
+        session = session.withError("$msg — $sub")
         updateStatus(msg, colorRed, sub.uppercase())
         performErrorVibration()
     }
@@ -307,9 +383,6 @@ class PassportActivity : AppCompatActivity() {
             layoutParams = FrameLayout.LayoutParams(MATCH, WRAP)
         }
 
-        // ✅ Fix: progressBar pehle initialize karo
-        // buildButtons() ke andar btnSimulate click → startEngine() → progressBar use karta hai
-        // Agar progressBar pehle nahi bana toh UninitializedPropertyAccessException crash
         progressBar = ProgressBar(this).apply { visibility = View.GONE }
 
         container.addView(buildHeader())
@@ -443,14 +516,15 @@ class PassportActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, WRAP, 1f)
         }
         tvStatusMsg = TextView(this).apply {
-            text = "PASSPORT SCANNER PRO"
+            // [SESSION v2.0] Initial text from SessionState.IDLE.displayString
+            text = SessionState.IDLE.displayString
             textSize = 11f
             setTextColor(Color.GRAY)
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.12f
         }
         tvStatusSub = TextView(this).apply {
-            text = "READY · SCAN MRZ TO BEGIN"
+            text = SessionState.IDLE.statusSub
             textSize = 9f
             setTextColor(Color.parseColor("#334455"))
             letterSpacing = 0.08f
@@ -470,7 +544,6 @@ class PassportActivity : AppCompatActivity() {
             setPadding(px(16), px(14), px(16), 0)
         }
 
-        // Photo frame
         photoFrame = CardView(this).apply {
             radius = px(16).toFloat()
             cardElevation = 0f
@@ -497,7 +570,6 @@ class PassportActivity : AppCompatActivity() {
         photoInner.addView(tvPhotoLabel)
         photoFrame.addView(photoInner)
 
-        // Identity card
         cardIdentity = CardView(this).apply {
             radius = px(16).toFloat()
             cardElevation = 0f
@@ -528,14 +600,15 @@ class PassportActivity : AppCompatActivity() {
             return lbl to `val`
         }
 
-        val (_, n) = idRow("FULL NAME");       tvName = n
-        val (_, d) = idRow("DOCUMENT");        tvDocNum = d
-        val (_, nat) = idRow("NATIONALITY");   tvNationality = nat
-        val (_, sod) = idRow("SOD STATUS");    tvSodStatus = sod
-        val (_, mod) = idRow("MODE");          tvMode = mod; mod.textSize = 10f; mod.setTextColor(Color.parseColor("#445566"))
+        val (_, n)   = idRow("FULL NAME");    tvName = n
+        val (_, d)   = idRow("DOCUMENT");     tvDocNum = d
+        val (_, nat) = idRow("NATIONALITY");  tvNationality = nat
+        val (_, sod) = idRow("SOD STATUS");   tvSodStatus = sod
+        val (_, mod) = idRow("MODE");         tvMode = mod
+        mod.textSize = 10f
+        mod.setTextColor(Color.parseColor("#445566"))
 
         cardIdentity.addView(idInner)
-
         row.addView(photoFrame)
         row.addView(cardIdentity)
         return row
@@ -634,7 +707,6 @@ class PassportActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
         }
 
-        // Card header
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(px(14), px(12), px(14), px(12))
@@ -666,7 +738,6 @@ class PassportActivity : AppCompatActivity() {
         }
         header.addView(icon); header.addView(title); header.addView(badge)
 
-        // Divider
         val div = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(MATCH, 1)
             setBackgroundColor(colorBorder)

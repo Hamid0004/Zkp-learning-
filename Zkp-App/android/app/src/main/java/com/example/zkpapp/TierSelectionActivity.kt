@@ -12,16 +12,15 @@ import android.view.animation.*
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
-import androidx.core.content.ContextCompat
 
 /**
  * TierSelectionActivity.kt
  *
  * "Create ID" button ke baad yeh screen aati hai.
  * User apna identity tier choose karta hai:
- *   Tier 1 — Passport + NFC  (Maximum Trust)
- *   Tier 2 — National ID + NFC (High Trust)
- *   Tier 3 — Device + Biometric (Basic Trust)
+ * Tier 1 — Passport + NFC  (Maximum Trust)
+ * Tier 2 — National ID + NFC (High Trust)
+ * Tier 3 — Device + Biometric (Basic Trust)
  */
 class TierSelectionActivity : AppCompatActivity() {
 
@@ -40,6 +39,7 @@ class TierSelectionActivity : AppCompatActivity() {
     private var selectedTier  = -1
     private lateinit var btnContinue: Button
     private val tierCards     = mutableListOf<CardView>()
+    private val tierIndicators = mutableListOf<TextView>() // 👈 FIX: Added this to track indicators
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -407,6 +407,7 @@ class TierSelectionActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#334455"))
             letterSpacing = 0.1f
         }
+        tierIndicators.add(selectIndicator) // 👈 FIX: Tracking the indicator text
 
         footer.addView(tagTv)
         footer.addView(selectIndicator)
@@ -455,18 +456,24 @@ class TierSelectionActivity : AppCompatActivity() {
             else v.vibrate(60)
         } catch (_: Exception) {}
 
-        // Reset all cards
+        // 🎯 FIX: Reset all cards correctly (clear foreground, not background)
         tierCards.forEach { card ->
-            card.background = null
+            card.foreground = null 
             card.setCardBackgroundColor(colorCardBg)
         }
+        
+        // 🎯 FIX: Reset all text indicators back to default
+        tierIndicators.forEach { indicator ->
+            indicator.text = "TAP TO SELECT"
+            indicator.setTextColor(Color.parseColor("#334455"))
+        }
 
-        // Highlight selected
+        // Highlight selected card
         selectedCard.foreground = GradientDrawable().apply {
             shape        = GradientDrawable.RECTANGLE
             cornerRadius = px(16).toFloat()
             setColor(Color.TRANSPARENT)
-            setStroke(2, glowColor)
+            setStroke(px(2), glowColor) // Changed to px(2) so it scales correctly
         }
 
         selectIndicator.text      = "✅ SELECTED"
