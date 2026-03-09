@@ -27,6 +27,10 @@ import java.util.concurrent.atomic.AtomicLong
 
 class PassportActivity : AppCompatActivity() {
 
+    // ── Security ──────────────────────────────────────────────────────────────
+    private val keyStoreManager  = com.example.zkpapp.security.KeyStoreManager()
+    private val biometricManager by lazy { com.example.zkpapp.security.ZkBiometricManager(this) }
+
     // ── NFC ───────────────────────────────────────────────────────────────────
     private var nfcAdapter: NfcAdapter? = null
     private val isNfcBusy    = AtomicBoolean(false)
@@ -233,10 +237,67 @@ class PassportActivity : AppCompatActivity() {
         cardIdentity.visibility = View.VISIBLE
         animateFadeIn(cardIdentity)
 
-        // Save to IdentityStorage BEFORE proof generation
-        // [PassportData v2.0] Use computed properties — correct hex, not Base64
+        // [v3.0] Biometric-gated encrypted save
+        // KeyStoreManager AES → encrypt DG1/SOD → EncryptedSharedPreferences
+        // User never needs to rescan passport on this device after this.
+        try {
+            val cipher    = keyStoreManager.getCipherForEncryption()
+            val cryptoObj = androidx.biometric.BiometricPrompt.CryptoObject(cipher)
+
+            biometricManager.authenticateUser(
+                activity     = this,
+                cryptoObject = cryptoObj,
+                subtitle     = "Passport ko secure karne ke liye fingerprint lagayein",
+                onSuccess    = { result ->
+                    val encCipher = result.cryptoObject?.cipher ?: run {
+                        saveIdentityRamOnly(data)
+                        startZkProofGeneration(data)
+                        return@authenticateUser
+                    }
+                    IdentityStorage.saveIdentityEncrypted(
+                        context     = this,
+                        cipher      = encCipher,
+                        secret      = data.dg1SecretHex,
+                        country     = data.nationality.ifEmpty { "PAK" },
+                        docNumber   = data.documentNumber,
+                        fName       = data.firstName,
+                        lName       = data.lastName,
+                        nationality = data.nationality,
+                        dob         = data.dateOfBirth,
+                        expiry      = data.expiryDate,
+                        dg1         = data.dg1Hex,
+                        sod         = data.sodHex,
+                        mrz         = data.mrzLine.ifEmpty { session.mrzInfo?.raw ?: "" },
+                        dsCert      = data.dsCertHex,
+                        domain      = "zkpapp.local"
+                    )
+                    startZkProofGeneration(data)
+                },
+                onError = { errMsg ->
+                    saveIdentityRamOnly(data)
+                    showToast("⚠️ Biometric skipped — identity not persisted: $errMsg")
+                    startZkProofGeneration(data)
+                },
+                onFailed = {
+                    showToast("⚠️ Wrong fingerprint — try again")
+                }
+            )
+            return
+        } catch (e: com.example.zkpapp.security.KeyStoreManager.KeyInvalidatedException) {
+            keyStoreManager.deleteKey()
+            IdentityStorage.clearPersistent(this)
+            showToast("🔑 New biometric detected — identity cleared. Rescan passport.")
+            saveIdentityRamOnly(data)
+        } catch (e: Exception) {
+            saveIdentityRamOnly(data)
+        }
+        startZkProofGeneration(data)
+    }
+
+    // ── RAM-only fallback (biometric cancelled / key error) ───────────────────
+    private fun saveIdentityRamOnly(data: PassportData) {
         IdentityStorage.saveIdentity(
-            secret      = data.dg1SecretHex,     // SHA-256(dg1Bytes) — not guessable
+            secret      = data.dg1SecretHex,
             country     = data.nationality.ifEmpty { "PAK" },
             docNumber   = data.documentNumber,
             fName       = data.firstName,
@@ -244,14 +305,16 @@ class PassportActivity : AppCompatActivity() {
             nationality = data.nationality,
             dob         = data.dateOfBirth,
             expiry      = data.expiryDate,
-            dg1         = data.dg1Hex,            // hex (not Base64)
-            sod         = data.sodHex,            // hex (not Base64)
+            dg1         = data.dg1Hex,
+            sod         = data.sodHex,
             mrz         = data.mrzLine.ifEmpty { session.mrzInfo?.raw ?: "" },
-            dsCert      = data.dsCertHex,         // real DS cert or null
+            dsCert      = data.dsCertHex,
             domain      = "zkpapp.local"
         )
+    }
 
-        // [SESSION v2.0] Mark ZKP_GENERATING before Rust starts
+    // ── ZK Proof Generation ───────────────────────────────────────────────────
+    private fun startZkProofGeneration(data: PassportData) {
         rustJob?.cancel()
         session = session.copy(state = SessionState.ZKP_GENERATING)
         updateStatus(session.state.displayString, colorCyan, session.state.statusSub)
@@ -271,11 +334,9 @@ class PassportActivity : AppCompatActivity() {
 
                 when (rustResult) {
                     is SecurityGate.ProofResult.Success -> {
-                        // [SESSION v2.0] ZKP_READY — proof cached, websites can auth
                         session = session.copy(state = SessionState.ZKP_READY)
                         updateStatus(session.state.displayString, colorGreen, session.state.statusSub)
                         updateStepBar(session.state.stepIndex)
-
                         showRustSuccess(data, rustResult.result)
                         showToast("🦁 ZK Proof Ready · ${session.minutesRemaining}min session")
                     }
