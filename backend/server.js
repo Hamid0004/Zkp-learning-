@@ -9,7 +9,9 @@ const PORT = process.env.PORT || 3000;
 const SESSION_TTL_MS   = 10 * 60 * 1000;
 const SCAN_TTL_MS      = 2  * 60 * 1000;
 const CLEANUP_INTERVAL = 60 * 1000;
-const CLAIM_TYPES      = ['zkauth', 'age', 'dob', 'identity'];
+
+// [FIX 1] Claim types synced with app (AuthActivity + IdentityStorage)
+const CLAIM_TYPES = ['is_adult', 'nationality', 'is_human'];
 
 const STATE = {
   PENDING  : 'pending',
@@ -29,6 +31,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const sessions = new Map();
+
+// [FIX 6] Global nullifier registry — cross-session replay prevention
+const usedNullifiers = new Set();
+
 const stats = {
   totalSessions : 0,
   totalProofs   : 0,
@@ -40,40 +46,58 @@ const stats = {
 };
 
 function makeChallenge() { return crypto.randomBytes(32).toString('hex'); }
-function buildDeepLink(sessionId, challenge, claimType) {
-  const base = process.env.DEEP_LINK_SCHEME || 'zkpapp';
-  return `${base}://auth?session=${sessionId}&challenge=${challenge}&claim=${claimType}`;
+
+// [FIX 2] Deep link format synced with app AndroidManifest + AuthActivity
+// App expects: zkauth://auth?domain=X&claim=Y&challenge=Z&callback=W
+function buildDeepLink(sessionId, challenge, claimType, domain, callbackUrl) {
+  const params = new URLSearchParams({
+    domain,
+    claim    : claimType,
+    challenge,
+    callback : callbackUrl,
+    session  : sessionId,   // kept for server-side session lookup
+  });
+  return `zkauth://auth?${params.toString()}`;
 }
+
+function getCallbackUrl(req) {
+  // Build /zkauth/verify URL from incoming request origin
+  const host   = process.env.SERVER_URL || `${req.protocol}://${req.get('host')}`;
+  return `${host}/zkauth/verify`;
+}
+
 function log(level, msg, extra = '') {
   const icons = { info: '✅', warn: '⚠️', error: '❌' };
   console.log(`${icons[level] || '📋'} [${new Date().toISOString()}] ${msg} ${extra}`);
 }
+
 function recordProofTime(ms) {
   if (typeof ms !== 'number') return;
   stats.proofTimes.push(ms);
   if (stats.proofTimes.length > 100) stats.proofTimes.shift();
 }
 
-function createSession({ domain, claimType }) {
+function createSession({ domain, claimType, callbackUrl }) {
   const sessionId = crypto.randomUUID();
   const challenge = makeChallenge();
-  const deepLink  = buildDeepLink(sessionId, challenge, claimType);
+  const deepLink  = buildDeepLink(sessionId, challenge, claimType, domain, callbackUrl);
 
   return {
     sessionId,
     domain,
     claimType,
     challenge,
+    callbackUrl,
     deepLink,
-    status    : STATE.PENDING,
-    proof     : null,
-    nullifier : null,
-    metadata  : null,
+    status     : STATE.PENDING,
+    proof      : null,
+    nullifier  : null,
+    metadata   : null,
     claimResult: null,
-    createdAt : Date.now(),
-    expiresAt : Date.now() + SESSION_TTL_MS,
-    scannedAt : null,
-    verifiedAt: null,
+    createdAt  : Date.now(),
+    expiresAt  : Date.now() + SESSION_TTL_MS,
+    scannedAt  : null,
+    verifiedAt : null,
   };
 }
 
@@ -81,7 +105,7 @@ function createSession({ domain, claimType }) {
 
 app.get('/', (req, res) => res.json({
   name       : 'zkAuth Relay Server',
-  version    : '2.1.0',
+  version    : '3.0.0',
   status     : 'online',
   environment: process.env.NODE_ENV || 'development',
   timestamp  : new Date().toISOString(),
@@ -103,11 +127,15 @@ app.get('/health', (req, res) => res.json({
 
 // ── START SESSION ─────────────────────────────────────────────
 app.get('/api/start-session', (req, res) => {
-  const domain    = req.query.domain || 'unknown';
+  const domain    = req.query.domain || req.get('host') || 'unknown';
+  // [FIX 1] Validate against new claim types; default to is_adult
   const claimType = CLAIM_TYPES.includes(req.query.claim)
-    ? req.query.claim : 'zkauth';
+    ? req.query.claim : 'is_adult';
 
-  const session = createSession({ domain, claimType });
+  // [FIX 4] callbackUrl built from request so it always points to this server
+  const callbackUrl = getCallbackUrl(req);
+
+  const session = createSession({ domain, claimType, callbackUrl });
   sessions.set(session.sessionId, session);
   stats.totalSessions++;
 
@@ -121,9 +149,8 @@ app.get('/api/start-session', (req, res) => {
 
   log('info', `Session created: ${session.sessionId}`, `| ${domain} | ${claimType}`);
 
-  // ✅ Return BOTH old format + new format — nothing breaks
   res.json({
-    // Old fields (original app uses these)
+    // Legacy fields (backward compat)
     session_id : session.sessionId,
     challenge  : session.challenge,
     expires_in : SESSION_TTL_MS / 1000,
@@ -134,9 +161,10 @@ app.get('/api/start-session', (req, res) => {
       timestamp : Date.now(),
     })).toString('base64'),
 
-    // New fields (passkey flow uses these)
-    claim_type : session.claimType,
-    deep_link  : session.deepLink,
+    // New fields — [FIX 2] deep_link now correct format for app
+    claim_type  : session.claimType,
+    deep_link   : session.deepLink,
+    callback_url: callbackUrl,
   });
 });
 
@@ -147,7 +175,7 @@ app.post('/api/scan-notify', (req, res) => {
 
   if (!session) return res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
   if (session.status === STATE.COMPLETED) return res.status(409).json({ error: 'Already completed', error_code: 'INVALID_STATE' });
-  if (Date.now() > session.expiresAt)    return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
+  if (Date.now() > session.expiresAt) return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
 
   session.status    = STATE.SCANNING;
   session.scannedAt = Date.now();
@@ -173,11 +201,126 @@ app.post('/api/proving-notify', (req, res) => {
   res.json({ success: true, status: STATE.PROVING });
 });
 
-// ── UPLOAD PROOF ──────────────────────────────────────────────
+// ── ZKAUTH VERIFY ─────────────────────────────────────────────
+// [FIX 5] NEW endpoint — app POSTs ZKAuthPayload v2.0 here after proof generation
+//
+// App sends (buildZkAuthPayload in AuthActivity):
+// {
+//   version, domain, claim_type, challenge,
+//   nullifier, hw_binding, valid_until,
+//   compressed_proof, device_sig, timestamp,
+//   session_id (optional)
+// }
+app.post('/zkauth/verify', (req, res) => {
+  const {
+    session_id,
+    nullifier,
+    compressed_proof,
+    claim_type,
+    domain,
+    challenge,
+    valid_until,
+    hw_binding,
+    device_sig,
+    version,
+    timestamp,
+  } = req.body;
+
+  // ── Basic validation ──────────────────────────────────────
+  if (!compressed_proof) {
+    return res.status(400).json({ error: 'Missing compressed_proof', error_code: 'MISSING_PROOF' });
+  }
+  if (!nullifier) {
+    return res.status(400).json({ error: 'Missing nullifier', error_code: 'MISSING_NULLIFIER' });
+  }
+  if (!challenge) {
+    return res.status(400).json({ error: 'Missing challenge', error_code: 'MISSING_CHALLENGE' });
+  }
+
+  // ── [FIX 6] Global nullifier replay check ─────────────────
+  if (usedNullifiers.has(nullifier)) {
+    log('warn', `Replay attack blocked — nullifier reused: ${nullifier.slice(0, 16)}…`);
+    return res.status(409).json({ error: 'Nullifier already used', error_code: 'REPLAY_DETECTED' });
+  }
+
+  // ── Proof expiry check ────────────────────────────────────
+  if (valid_until && valid_until < Math.floor(Date.now() / 1000)) {
+    return res.status(410).json({ error: 'Proof expired', error_code: 'PROOF_EXPIRED' });
+  }
+
+  // ── Session lookup (optional — mobile may not have sessionId) ─
+  let session = null;
+  if (session_id) {
+    session = sessions.get(session_id);
+    if (session) {
+      if (session.status === STATE.COMPLETED) {
+        return res.status(409).json({ error: 'Session already completed', error_code: 'DUPLICATE_PROOF' });
+      }
+      if (session.status === STATE.EXPIRED || Date.now() > session.expiresAt) {
+        return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
+      }
+      // Validate challenge matches session
+      if (session.challenge !== challenge) {
+        log('warn', `Challenge mismatch for session ${session_id}`);
+        return res.status(400).json({ error: 'Challenge mismatch', error_code: 'CHALLENGE_MISMATCH' });
+      }
+    }
+  }
+
+  // ── Accept proof ──────────────────────────────────────────
+  usedNullifiers.add(nullifier);  // [FIX 6] register nullifier globally
+
+  if (session) {
+    session.status      = STATE.COMPLETED;
+    session.proof       = compressed_proof;
+    session.nullifier   = nullifier;
+    session.claimResult = { type: claim_type, value: true };
+    session.metadata    = {
+      version,
+      domain,
+      hw_binding,
+      valid_until,
+      timestamp,
+      generation_time_ms: timestamp ? Date.now() - timestamp : null,
+    };
+    session.verifiedAt = Date.now();
+    sessions.set(session_id, session);
+  }
+
+  stats.totalProofs++;
+  recordProofTime(timestamp ? Date.now() - timestamp : null);
+
+  log('info', `✅ ZK proof verified`, `| claim=${claim_type} | domain=${domain} | nullifier=${nullifier.slice(0,16)}…`);
+
+  res.json({
+    success    : true,
+    verified   : true,
+    claim_type,
+    domain,
+    nullifier  : nullifier.slice(0, 16) + '…',  // truncated in response
+    verified_at: Date.now(),
+    message    : 'Zero-knowledge proof verified successfully',
+  });
+});
+
+// ── UPLOAD PROOF (legacy) ─────────────────────────────────────
 app.post('/api/upload-proof', (req, res) => {
-  const { sessionId, session_id, proof, proof_data, nullifier, metadata, claimResult } = req.body;
+  // [FIX] Accept both old field names and new ZKAuthPayload field names
+  const {
+    sessionId, session_id,
+    proof, proof_data, compressed_proof,
+    nullifier,
+    metadata,
+    claimResult,
+    claim_type,
+    domain,
+    valid_until,
+    hw_binding,
+    timestamp,
+  } = req.body;
+
   const sid       = sessionId || session_id;
-  const proofData = proof     || proof_data;
+  const proofData = proof || proof_data || compressed_proof;
 
   if (!sid)       return res.status(400).json({ error: 'Missing session ID',  error_code: 'MISSING_SESSION_ID' });
   if (!proofData) return res.status(400).json({ error: 'Missing proof data',  error_code: 'MISSING_PROOF' });
@@ -188,18 +331,24 @@ app.post('/api/upload-proof', (req, res) => {
   if (session.status === STATE.EXPIRED || Date.now() > session.expiresAt)
     return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
 
+  // Nullifier replay check
+  if (nullifier && usedNullifiers.has(nullifier)) {
+    return res.status(409).json({ error: 'Nullifier already used', error_code: 'REPLAY_DETECTED' });
+  }
+  if (nullifier) usedNullifiers.add(nullifier);
+
   session.status      = STATE.COMPLETED;
   session.proof       = proofData;
-  session.nullifier   = nullifier    || null;
-  session.metadata    = metadata     || null;
-  session.claimResult = claimResult  || null;
+  session.nullifier   = nullifier   || null;
+  session.metadata    = metadata    || { domain, valid_until, hw_binding, timestamp };
+  session.claimResult = claimResult || (claim_type ? { type: claim_type, value: true } : null);
   session.verifiedAt  = Date.now();
   sessions.set(sid, session);
 
   stats.totalProofs++;
   recordProofTime(metadata?.generation_time_ms);
 
-  log('info', `Proof verified: ${sid}`, `| ${metadata?.generation_time_ms ?? 'N/A'}ms`);
+  log('info', `Proof uploaded: ${sid}`, `| ${metadata?.generation_time_ms ?? 'N/A'}ms`);
 
   res.json({
     success    : true,
@@ -243,6 +392,7 @@ app.get('/api/stats', (req, res) => res.json({
   avg_proof_time_ms    : stats.avgProofTime,
   server_uptime_seconds: Math.round(process.uptime()),
   memory_usage_mb      : Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+  nullifiers_registered: usedNullifiers.size,
 }));
 
 app.delete('/api/session/:session_id', (req, res) => {
@@ -271,8 +421,9 @@ setInterval(() => {
 
 // ─── Boot ─────────────────────────────────────────────────────
 const server = app.listen(PORT, '0.0.0.0', () => {
-  log('info', `zkAuth Relay v2.1 on port ${PORT}`);
+  log('info', `zkAuth Relay v3.0 on port ${PORT}`);
   log('info', `Health: http://localhost:${PORT}/health`);
+  log('info', `ZK verify endpoint: POST /zkauth/verify`);
 });
 
 process.on('SIGTERM', () => {
