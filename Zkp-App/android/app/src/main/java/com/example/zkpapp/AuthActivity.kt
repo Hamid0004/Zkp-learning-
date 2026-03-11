@@ -214,7 +214,15 @@ class AuthActivity : AppCompatActivity() {
         if (challenge.isNullOrEmpty() || challenge.length < 32) {
             showZkError("Invalid login request.\nPlease try again from the website."); return
         }
-        if (callback.isNullOrEmpty() || !callback.startsWith("https://")) {
+        // Allow https always; also allow http for localhost + railway dev environments
+        val isSecureCallback = callback != null && (
+            callback.startsWith("https://") ||
+            callback.startsWith("http://localhost") ||
+            callback.startsWith("http://127.0.0.1") ||
+            callback.contains(".railway.app") ||
+            callback.contains(".up.railway.app")
+        )
+        if (callback.isNullOrEmpty() || !isSecureCallback) {
             showZkError("Insecure login request rejected.\nWebsite must use HTTPS."); return
         }
 

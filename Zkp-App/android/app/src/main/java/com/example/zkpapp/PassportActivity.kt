@@ -274,9 +274,10 @@ class PassportActivity : AppCompatActivity() {
                     startZkProofGeneration(data)
                 },
                 onError = { errMsg ->
+                    // Biometric cancelled or failed — do NOT proceed to proof
+                    // Identity saved to RAM only; user must re-authenticate to generate proof
                     saveIdentityRamOnly(data)
-                    showToast("⚠️ Biometric skipped — identity not persisted: $errMsg")
-                    startZkProofGeneration(data)
+                    showToast("⚠️ Biometric cancelled — tap Authenticate to continue")
                 },
                 onFailed = {
                     showToast("⚠️ Wrong fingerprint — try again")
