@@ -25,11 +25,14 @@ fn init_logger() {
 //   Java_com_example_zkpapp_SecurityGate_generateClaimProof
 //   Java_com_example_zkpapp_SecurityGate_generateSimulatedClaimProof
 //
-// `pub mod passport_security` here compiles the module — its #[no_mangle]
-// symbols are exported into the .so automatically. No wrapper needed in lib.rs.
+// device_tier.rs defines its OWN #[no_mangle] JNI functions directly:
+//   Java_com_example_zkpapp_DeviceTierGate_warmupDeviceCircuit
+//   Java_com_example_zkpapp_DeviceTierGate_generateDeviceProof
+//   Java_com_example_zkpapp_DeviceTierGate_generateSimulatedDeviceProof
 
 pub mod offline_identity;
 pub mod passport_security;
+pub mod device_tier;       // Tier 3 — Device + Biometric
 pub mod zk_auth;
 pub mod proof_bench;
 pub mod secure_vault;
@@ -44,7 +47,7 @@ pub extern "C" fn Java_com_example_zkpapp_ZkAuthManager_initRust(
     _class: JClass,
 ) {
     init_logger();
-    info!("Rust ZKP Engine v5.1 Initialized");
+    info!("Rust ZKP Engine v5.1 | Tier 1 ✅ | Tier 3 ✅ Initialized");
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
