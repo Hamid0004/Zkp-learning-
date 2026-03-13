@@ -17,7 +17,7 @@ jobs:
 
     # ── Step 2: Validate gradlew has not been tampered with (supply chain) ─
     - name: Validate Gradle Wrapper
-      uses: gradle/wrapper-validation-action@v2
+      uses: gradle/wrapper-validation-action@v3
 
     # ── Step 3: Install Java 17 Temurin (LTS, fully supported by AGP 8.3+) ─
     #    NOTE: Project targets VERSION_17, jvmTarget=17 in app/build.gradle

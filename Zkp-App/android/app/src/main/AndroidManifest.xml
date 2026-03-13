@@ -47,6 +47,12 @@
             android:windowSoftInputMode="stateHidden" />
 
         <activity
+            android:name=".DeviceTierActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="false"
             android:launchMode="singleTop"
