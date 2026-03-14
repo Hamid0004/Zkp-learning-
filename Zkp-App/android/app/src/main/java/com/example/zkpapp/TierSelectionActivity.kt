@@ -330,38 +330,12 @@ class TierSelectionActivity : AppCompatActivity() {
         }.start()
     }
 
-    // Called before buildTierCard() — ensures btnContinue exists when selectTier() fires
-    private fun initContinueButton() {
-        btnContinue = Button(this).apply {
-            text          = "SELECT A TIER TO CONTINUE"
-            textSize      = 12f
-            typeface      = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.15f
-            setTextColor(Color.WHITE)
-            background    = GradientDrawable().apply {
-                shape        = GradientDrawable.RECTANGLE
-                cornerRadius = px(14).toFloat()
-                setColor(Color.parseColor("#1a3a4a"))
-            }
-            layoutParams  = LinearLayout.LayoutParams(MATCH, px(54))
-            isEnabled     = false
-            alpha         = 0.45f
-            setPadding(0, 0, 0, 0)
-            setOnClickListener {
-                when (selectedTier) {
-                    1 -> startActivity(Intent(this@TierSelectionActivity, PassportActivity::class.java))
-                    2 -> showToast("🪪 National ID — Coming Soon")
-                    3 -> startActivity(Intent(this@TierSelectionActivity, DeviceTierActivity::class.java))
-                }
-            }
-        }
-    }
-
     private fun buildContinueButton(): View {
         val wrapper = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(px(16), 0, px(16), 0)
         }
-        btnContinue.apply {
+        // ✅ Assign btnContinue HERE — this is the only place it's initialized
+        btnContinue = Button(this).apply {
             text          = "SELECT A TIER TO CONTINUE"
             textSize      = 12f
             typeface      = Typeface.DEFAULT_BOLD
