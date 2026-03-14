@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ "main" ]
 
-# 🟢 ADDED: Forces GitHub Actions to use Node 24, fixing the deprecation warnings
+# 🟢 ADDED: Yeh block GitHub ko Node 24 use karne pe force karega aur warning khatam kar dega
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -21,7 +21,6 @@ jobs:
 
     # ── Step 2: Validate gradlew has not been tampered with (supply chain) ─
     - name: Validate Gradle Wrapper
-      # 🟢 UPDATED: Moved from deprecated v3 to the new official v4 path
       uses: gradle/actions/wrapper-validation@v4
 
     # ── Step 3: Install Java 17 Temurin (LTS, fully supported by AGP 8.3+) ─

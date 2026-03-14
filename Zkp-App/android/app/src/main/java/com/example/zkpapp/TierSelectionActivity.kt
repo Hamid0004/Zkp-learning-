@@ -29,9 +29,8 @@ class TierSelectionActivity : AppCompatActivity() {
     private val tierCards      = mutableListOf<CardView>()
     private val tierIndicators = mutableListOf<TextView>()
 
-    // ✅ FIX: Initialize btnContinue at class level — no lateinit
-    // This means selectTier() can safely access it even before buildContinueButton() runs
-    private var btnContinue: Button = Button(this)
+    // lateinit — initialized inside buildUI() BEFORE buildTierCard() calls
+    private lateinit var btnContinue: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -329,6 +328,33 @@ class TierSelectionActivity : AppCompatActivity() {
         btnContinue.animate().scaleX(1.02f).scaleY(1.02f).setDuration(100).withEndAction {
             btnContinue.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
         }.start()
+    }
+
+    // Called before buildTierCard() — ensures btnContinue exists when selectTier() fires
+    private fun initContinueButton() {
+        btnContinue = Button(this).apply {
+            text          = "SELECT A TIER TO CONTINUE"
+            textSize      = 12f
+            typeface      = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.15f
+            setTextColor(Color.WHITE)
+            background    = GradientDrawable().apply {
+                shape        = GradientDrawable.RECTANGLE
+                cornerRadius = px(14).toFloat()
+                setColor(Color.parseColor("#1a3a4a"))
+            }
+            layoutParams  = LinearLayout.LayoutParams(MATCH, px(54))
+            isEnabled     = false
+            alpha         = 0.45f
+            setPadding(0, 0, 0, 0)
+            setOnClickListener {
+                when (selectedTier) {
+                    1 -> startActivity(Intent(this@TierSelectionActivity, PassportActivity::class.java))
+                    2 -> showToast("🪪 National ID — Coming Soon")
+                    3 -> startActivity(Intent(this@TierSelectionActivity, DeviceTierActivity::class.java))
+                }
+            }
+        }
     }
 
     private fun buildContinueButton(): View {
