@@ -49,13 +49,14 @@ function makeChallenge() { return crypto.randomBytes(32).toString('hex'); }
 
 // [FIX 2] Deep link format synced with app AndroidManifest + AuthActivity
 // App expects: zkauth://auth?domain=X&claim=Y&challenge=Z&callback=W
-function buildDeepLink(sessionId, challenge, claimType, domain, callbackUrl) {
+function buildDeepLink(sessionId, challenge, claimType, domain, callbackUrl, tier = 1) {
   const params = new URLSearchParams({
     domain,
     claim    : claimType,
     challenge,
     callback : callbackUrl,
-    session  : sessionId,   // kept for server-side session lookup
+    session  : sessionId,
+    tier     : String(tier),
   });
   return `zkauth://auth?${params.toString()}`;
 }
@@ -77,10 +78,10 @@ function recordProofTime(ms) {
   if (stats.proofTimes.length > 100) stats.proofTimes.shift();
 }
 
-function createSession({ domain, claimType, callbackUrl }) {
+function createSession({ domain, claimType, callbackUrl, tier = 1 }) {
   const sessionId = crypto.randomUUID();
   const challenge = makeChallenge();
-  const deepLink  = buildDeepLink(sessionId, challenge, claimType, domain, callbackUrl);
+  const deepLink  = buildDeepLink(sessionId, challenge, claimType, domain, callbackUrl, tier);
 
   return {
     sessionId,
@@ -131,11 +132,13 @@ app.get('/api/start-session', (req, res) => {
   // [FIX 1] Validate against new claim types; default to is_adult
   const claimType = CLAIM_TYPES.includes(req.query.claim)
     ? req.query.claim : 'is_adult';
+  const tier      = [1, 3].includes(parseInt(req.query.tier))
+    ? parseInt(req.query.tier) : 1;
 
   // [FIX 4] callbackUrl built from request so it always points to this server
   const callbackUrl = getCallbackUrl(req);
 
-  const session = createSession({ domain, claimType, callbackUrl });
+  const session = createSession({ domain, claimType, callbackUrl, tier });
   sessions.set(session.sessionId, session);
   stats.totalSessions++;
 

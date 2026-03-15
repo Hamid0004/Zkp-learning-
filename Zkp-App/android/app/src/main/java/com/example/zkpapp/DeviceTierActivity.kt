@@ -80,7 +80,12 @@ class DeviceTierActivity : AppCompatActivity() {
         window.navigationBarColor = colorBg
 
         zkDomain    = intent.getStringExtra("domain")    ?: "zkpapp.local"
-        zkChallenge = intent.getStringExtra("challenge") ?: System.currentTimeMillis().toString(16)
+        // ✅ FIX: pad to even length — Rust hex::decode() requires even digits
+        val rawChallenge = intent.getStringExtra("challenge")
+            ?: System.currentTimeMillis().toString(16).let { h ->
+                if (h.length % 2 != 0) "0$h" else h
+            }
+        zkChallenge = if (rawChallenge.length % 2 != 0) "0$rawChallenge" else rawChallenge
         zkCallback  = intent.getStringExtra("callback")  ?: ""
 
         buildUI()

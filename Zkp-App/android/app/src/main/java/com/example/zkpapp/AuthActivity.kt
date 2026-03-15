@@ -74,10 +74,14 @@ class AuthActivity : AppCompatActivity() {
     private var zkClaim:     String? = null
     private var zkChallenge: String? = null
     private var zkCallback:  String? = null
+    private var zkTier:      Int     = TIER_PASSPORT  // default = Tier 1
 
     companion object {
         private const val TAG = "AuthActivity"
         private val VALID_CLAIMS = setOf("is_adult", "nationality", "is_human")
+        private val VALID_TIERS  = setOf(1, 3)   // 2 = coming soon
+        const val TIER_PASSPORT  = 1
+        const val TIER_DEVICE    = 3
     }
 
     // =========================================================
@@ -226,17 +230,38 @@ class AuthActivity : AppCompatActivity() {
             showZkError("Insecure login request rejected.\nWebsite must use HTTPS."); return
         }
 
+        // ── Parse tier (optional param — default 1) ──────────────
+        val tierParam = uri.getQueryParameter("tier")?.trim()?.toIntOrNull() ?: TIER_PASSPORT
+        zkTier = if (tierParam in VALID_TIERS) tierParam else TIER_PASSPORT
+
         zkDomain    = domain
         zkClaim     = claim
         zkChallenge = challenge
         zkCallback  = callback
 
-        Log.i(TAG, "✅ Params valid | domain=$domain | claim=$claim")
+        Log.i(TAG, "✅ Params valid | domain=$domain | claim=$claim | tier=$zkTier")
 
-        // Scope nullifier to requesting domain
-        IdentityStorage.setVerifierDomain(domain)
-
-        startZkProofFlow()
+        // ── Route by tier ─────────────────────────────────────────
+        when (zkTier) {
+            TIER_DEVICE -> {
+                // Tier 3 — Device + Biometric
+                // No passport needed — go straight to DeviceTierActivity
+                Log.i(TAG, "📱 Routing to DeviceTierActivity (Tier 3)")
+                val i = Intent(this, DeviceTierActivity::class.java).apply {
+                    putExtra("domain",    domain)
+                    putExtra("challenge", challenge)
+                    putExtra("callback",  callback)
+                }
+                startActivity(i)
+                finish()
+            }
+            else -> {
+                // Tier 1 — Passport (default)
+                // Scope nullifier to requesting domain
+                IdentityStorage.setVerifierDomain(domain)
+                startZkProofFlow()
+            }
+        }
     }
 
     // =========================================================

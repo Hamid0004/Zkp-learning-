@@ -183,6 +183,7 @@
       color:rgba(255,255,255,0.85); transform:translateY(-1px);
     }
     .std-btn:active { transform:translateY(0); }
+
     .success-icon-wrap {
       display:flex; justify-content:center; align-items:center;
       margin:0 auto 18px; width:72px; height:72px; border-radius:50%;
@@ -299,9 +300,12 @@
           </button>
         </div>
 
-        <div class="divider"><span>or</span></div>
-        <button class="std-btn" onclick="showToast('Standard Login — Coming Soon')">
-          Standard Login
+        <div class="divider"><span>or prove without passport</span></div>
+        <button class="std-btn" onclick="zkAuthTap('is_human', 3)" style="
+          border-color:rgba(255,215,0,0.3);
+          color:rgba(255,215,0,0.7);
+        ">
+          📱 &nbsp;Device Proof — No Passport Needed
         </button>
       </div>
     </div>
@@ -445,10 +449,10 @@
   }
 
   // Mobile: tap → deep link
-  async function zkAuthTap(claimType) {
+  async function zkAuthTap(claimType, tier = 1) {
     try {
       const domain = window.location.hostname || 'zkpapp.local';
-      const res    = await fetch(`${API_URL}/start-session?claim=${claimType}&domain=${domain}`);
+      const res    = await fetch(`${API_URL}/start-session?claim=${claimType}&domain=${domain}&tier=${tier}`);
       const data   = await res.json();
       sessionId    = data.session_id;
 
