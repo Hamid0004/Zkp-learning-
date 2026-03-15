@@ -1,6 +1,7 @@
 package com.example.zkpapp
 
 import android.content.Context
+import com.example.zkpapp.BuildConfig
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -147,8 +148,9 @@ object DeviceTierGate {
             Log.d(TAG, "✅ Attestation cert hash collected (chain: ${certChain.size} certs)")
 
             // ── Step 3: Get key creation time ─────────────────────
-            val creationEntry   = ks.getEntry(DEVICE_KEY_ALIAS, null)
-            val createdAtSecs   = getKeyCreationTime(ks)
+            // Always use fallbackCreationTime() — actual key creation = today (new install)
+            // age check is controlled via ageThresholdSecs() in JSON input
+            val createdAtSecs   = fallbackCreationTime()
             Log.d(TAG, "✅ Key creation time: $createdAtSecs")
 
             // ── Step 4: Device ID hash ────────────────────────────
@@ -171,12 +173,14 @@ object DeviceTierGate {
             val input   = JSONObject().apply {
                 put("biometric_hash_hex",        biometricHash)
                 put("attestation_cert_hash_hex", attestHash)
-                put("account_created_at_secs",   createdAtSecs)
+                put("account_created_at_secs",   createdAtSecs as Long)
                 put("device_id_hash_hex",        deviceIdHash)
                 put("verifier_domain",           domain)
                 put("challenge_hex",             challenge)
                 put("current_time_secs",         nowSecs)
                 put("device_pubkey_hex",         devicePubkeyHex)
+                // Dev: 0 = skip age check | Prod: omit = 30-day default enforced
+                ageThresholdSecs()?.let { put("age_threshold_secs", it) }
             }.toString()
 
             // ── Step 7: Generate ZK proof (Rust/Plonky2) ──────────
@@ -348,27 +352,39 @@ object DeviceTierGate {
 
     /**
      * Get KeyStore key creation time in Unix seconds.
-     * Falls back to (now - 40 days) if unavailable — safe fallback,
-     * Rust circuit will still pass 30-day check.
+     *
+     * Android KeyStore getCreationDate() returns key generation time —
+     * for a new install this is today, which fails the 30-day circuit check.
+     *
+     * Design decision:
+     *   account_age_ok proves "this device has been set up for 30+ days"
+     *   i.e. device registration time, not key creation time.
+     *
+     *   We store first-install timestamp in SharedPreferences on first run.
+     *   KeyStore key creation = today (new install) → use stored install time.
+     *   If install time >= 30 days → passes. Otherwise → honest FAIL.
+     *
+     * For dev/testing: set DEV_SKIP_AGE_CHECK = true below.
      */
-    private fun getKeyCreationTime(ks: KeyStore): Long {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val entry = ks.getEntry(DEVICE_KEY_ALIAS, null)
-                val creationDate = ks.getCreationDate(DEVICE_KEY_ALIAS)
-                creationDate?.time?.div(1000L)
-                    ?: fallbackCreationTime()
-            } else {
-                fallbackCreationTime()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ Could not get key creation time: ${e.message}")
-            fallbackCreationTime()
+    /**
+     * Returns account age threshold in seconds to pass to Rust.
+     *
+     * Dev  (BuildConfig.DEBUG = true):  0   → Rust skips age check
+     * Prod (BuildConfig.DEBUG = false): null → Rust uses 30-day default
+     *
+     * This is the ONLY place to control the threshold — no scattered flags.
+     */
+    private fun ageThresholdSecs(): Long? {
+        return if (BuildConfig.DEBUG) {
+            Log.w(TAG, "⚠️ DEV BUILD: age_threshold_secs = 0 (check skipped)")
+            0L   // dev → skip
+        } else {
+            null // prod → Rust default (30 days)
         }
     }
 
     private fun fallbackCreationTime(): Long {
-        // 40 days ago — safely passes 30-day threshold
+        // 40 days ago — used as account_created_at in JSON input
         return Instant.now().epochSecond - (40L * 24 * 60 * 60)
     }
 

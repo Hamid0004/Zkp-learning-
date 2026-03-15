@@ -65,7 +65,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
 use anyhow::{anyhow, Result};
-use std::time::{SystemTime, UNIX_EPOCH, Instant};
+use std::time::Instant;
 use std::sync::OnceLock;
 
 use plonky2::{
@@ -88,7 +88,10 @@ const D: usize = 2;
 
 const DEVICE_PROOF_TTL_SECS:      u64  = 300;              // 5 minutes
 const DEVICE_PROOF_VERSION:       &str = "2.0";
-const ACCOUNT_AGE_THRESHOLD_SECS: u64  = 30 * 24 * 60 * 60; // 30 days
+/// Default 30 days — overridden at runtime via input.age_threshold_secs
+/// Dev:  pass age_threshold_secs: 0  →  skip age check
+/// Prod: omit field              →  30 days enforced
+const ACCOUNT_AGE_THRESHOLD_SECS: u64 = 30 * 24 * 60 * 60;
 
 // ── Logger ────────────────────────────────────────────────────────────────────
 static LOGGER_INIT: std::sync::Once = std::sync::Once::new();
@@ -125,6 +128,9 @@ struct DeviceTierInput {
     current_time_secs:         u64,
     /// ECDSA P-256 public key hex (from KeyStore)
     device_pubkey_hex:         String,
+    /// Dev: 0 = skip age check. Prod: omit (uses 30-day default).
+    #[serde(default)]
+    age_threshold_secs:        Option<u64>,
 }
 
 /// Output to Android → POST /zkauth/verify
@@ -169,6 +175,7 @@ impl DeviceTierProof {
 // CIRCUIT DEFINITION
 // ─────────────────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 struct DeviceCircuit {
     data:             CircuitData<F, C, D>,
     // Private inputs
@@ -331,14 +338,20 @@ fn generate_device_proof_internal(input: &DeviceTierInput) -> Result<DeviceTierP
     }
 
     // ── Account age check ─────────────────────────────────────────────────
+    // Dev:  input.age_threshold_secs = 0  → skip check
+    // Prod: input.age_threshold_secs = None → use 30-day default
+    let threshold_secs = input.age_threshold_secs
+        .unwrap_or(ACCOUNT_AGE_THRESHOLD_SECS);
+
     let now = input.current_time_secs;
     if input.account_created_at_secs > now {
         return Err(anyhow!("account_created_at_secs is in the future"));
     }
     let account_age_secs = now - input.account_created_at_secs;
-    if account_age_secs < ACCOUNT_AGE_THRESHOLD_SECS {
+    if threshold_secs > 0 && account_age_secs < threshold_secs {
         return Err(anyhow!(
-            "Account too new — must be at least 30 days old (age: {}d)",
+            "Account too new — must be at least {}d old (age: {}d)",
+            threshold_secs / 86400,
             account_age_secs / 86400
         ));
     }
@@ -387,7 +400,7 @@ fn generate_device_proof_internal(input: &DeviceTierInput) -> Result<DeviceTierP
     let compressed_proof = hex::encode(&proof_bytes);
 
     // ── Compute Merkle root for output ────────────────────────────────────
-    let threshold_fe = F::from_canonical_u64(ACCOUNT_AGE_THRESHOLD_SECS);
+    let threshold_fe = F::from_canonical_u64(threshold_secs);
     let leaf3_in     = vec![F::from_canonical_u64(input.account_created_at_secs), threshold_fe];
     let leaf3        = PoseidonHash::hash_no_pad(&leaf3_in);
     let node_l       = PoseidonHash::two_to_one(biometric_fe, attest_fe);
