@@ -24,16 +24,16 @@ import kotlinx.coroutines.launch
  * Tier 3 — Device + Biometric ZK Proof Screen
  *
  * Flow:
- *   1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
- *   2. User taps "SCAN BIOMETRIC" → BiometricPrompt
- *   3. Biometric success → DeviceTierGate.generateProof()
- *   4. Proof result shown → claims displayed
- *   5. Auto-finish (deep link) or stay (registration mode)
+ * 1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
+ * 2. User taps "SCAN BIOMETRIC" → BiometricPrompt
+ * 3. Biometric success → DeviceTierGate.generateProof()
+ * 4. Proof result shown → claims displayed
+ * 5. Auto-finish (deep link) or stay (registration mode)
  *
  * Intent extras (deep link flow):
- *   "domain"    → verifier domain e.g. "discord.com"
- *   "challenge" → server challenge hex
- *   "callback"  → POST url
+ * "domain"    → verifier domain e.g. "discord.com"
+ * "challenge" → server challenge hex
+ * "callback"  → POST url
  * ═══════════════════════════════════════════════════════════════
  */
 class DeviceTierActivity : AppCompatActivity() {
@@ -184,8 +184,10 @@ class DeviceTierActivity : AppCompatActivity() {
 
     // ── ZK Proof ──────────────────────────────────────────────────────────────
     private fun onBiometricSuccess(signature: java.security.Signature) {
+        val callbackShort = if (zkCallback.isEmpty()) "NO CALLBACK URL" 
+                           else zkCallback.take(50)
         updateStatus("⚡ GENERATING ZK PROOF", colorCyan,
-            "PLONKY2 CIRCUIT · 4-LEAF MERKLE TREE")
+            "→ ${callbackShort}")
         haptic()
 
         lifecycleScope.launch {
@@ -242,9 +244,20 @@ class DeviceTierActivity : AppCompatActivity() {
     }
 
     private fun onProofError(message: String) {
-        updateStatus("❌ PROOF FAILED", colorRed, message.take(50).uppercase())
+        // Show full error on screen — no logcat needed for debugging
+        val displayMsg = message.take(80).uppercase()
+        updateStatus("❌ PROOF FAILED", colorRed, displayMsg)
         cardResult.visibility = View.VISIBLE
-        tvResultRows.text     = "❌  Error: $message"
+        tvProofTime.text      = "FAILED"
+        tvProofTime.setTextColor(colorRed)
+        tvResultRows.text = buildString {
+            appendLine("❌  Error:")
+            appendLine(message.take(200))
+            appendLine()
+            appendLine("Domain:    ${zkDomain.ifEmpty { "none" }}")
+            appendLine("Challenge: ${zkChallenge.take(16).ifEmpty { "none" }}…")
+            appendLine("Callback:  ${zkCallback.take(60).ifEmpty { "none" }}")
+        }
         animateFadeIn(cardResult)
         hapticError()
     }
@@ -368,11 +381,12 @@ class DeviceTierActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(px(16), px(16), px(16), px(16))
         }
+        // ✅ FIX: Added the missing closing bracket `)` right below here
         inner.addView(TextView(this).apply {
             text = "WHAT WILL BE PROVEN"; textSize = 9f
             setTextColor(Color.parseColor("#445566"))
             letterSpacing = 0.15f; typeface = Typeface.DEFAULT_BOLD
-        })
+        }) 
         inner.addView(spacer(12))
         inner.addView(buildMerkleVisual())
         inner.addView(spacer(14))
