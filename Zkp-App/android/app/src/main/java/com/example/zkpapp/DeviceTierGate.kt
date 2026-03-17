@@ -138,6 +138,7 @@ object DeviceTierGate {
         domain:    String,
         challenge: String,
         callback:  String,
+        sessionId: String = "",   // server session_id for poll completion
     ): DeviceTierResult = withContext(Dispatchers.Default) {
         try {
             // ── Step 1: Collect biometric hash ────────────────────
@@ -208,9 +209,10 @@ object DeviceTierGate {
 
             // ── Step 8: Build ZKAuth payload ──────────────────────
             val payload = buildZkAuthPayload(
-                result  = result,
-                domain  = domain,
+                result    = result,
+                domain    = domain,
                 challenge = challenge,
+                sessionId = sessionId,
             )
 
             // ── Step 9: POST to server (skip if no callback — registration mode) ──
@@ -270,6 +272,7 @@ object DeviceTierGate {
         result:    JSONObject,
         domain:    String,
         challenge: String,
+        sessionId: String = "",
     ): String {
         return try {
             // Sign the nullifier with device key — ECDSA proof of device ownership
@@ -284,6 +287,7 @@ object DeviceTierGate {
                 put("challenge",        challenge)
                 put("claim_type",       "is_human")     // server needs this
                 put("nullifier",        nullifier)
+                if (sessionId.isNotEmpty()) put("session_id", sessionId)
                 put("hw_binding",       result.optString("hw_binding"))
                 put("merkle_root",      result.optString("merkle_root"))
                 put("compressed_proof", result.optString("compressed_proof"))

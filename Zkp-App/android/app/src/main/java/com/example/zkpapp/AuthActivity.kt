@@ -209,6 +209,7 @@ class AuthActivity : AppCompatActivity() {
         val claim     = uri.getQueryParameter("claim")?.trim()?.lowercase()
         val challenge = uri.getQueryParameter("challenge")?.trim()
         val callback  = uri.getQueryParameter("callback")?.trim()
+        val session   = uri.getQueryParameter("session")?.trim() ?: ""
 
         if (domain.isNullOrEmpty()) { showZkError("Invalid login request.\nPlease try again from the website."); return }
         if (claim.isNullOrEmpty() || claim !in VALID_CLAIMS) {
@@ -251,6 +252,7 @@ class AuthActivity : AppCompatActivity() {
                     putExtra("domain",    domain)
                     putExtra("challenge", challenge)
                     putExtra("callback",  callback)
+                    putExtra("session",   session)
                 }
                 startActivity(i)
                 finish()

@@ -69,6 +69,7 @@ class DeviceTierActivity : AppCompatActivity() {
     private var zkDomain    = ""
     private var zkChallenge = ""
     private var zkCallback  = ""
+    private var zkSession   = ""  // server session_id — needed to complete poll
 
     private val TAG = "DeviceTierActivity"
 
@@ -80,6 +81,7 @@ class DeviceTierActivity : AppCompatActivity() {
         window.navigationBarColor = colorBg
 
         zkDomain    = intent.getStringExtra("domain")    ?: "zkpapp.local"
+        zkSession   = intent.getStringExtra("session")   ?: ""
         // ✅ FIX: pad to even length — Rust hex::decode() requires even digits
         val rawChallenge = intent.getStringExtra("challenge")
             ?: System.currentTimeMillis().toString(16).let { h ->
@@ -195,6 +197,7 @@ class DeviceTierActivity : AppCompatActivity() {
                 domain    = zkDomain,
                 challenge = zkChallenge,
                 callback  = zkCallback,
+                sessionId = zkSession,
             )
             runOnUiThread {
                 progressBar.visibility = View.GONE
