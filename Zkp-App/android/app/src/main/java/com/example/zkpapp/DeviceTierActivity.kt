@@ -24,16 +24,16 @@ import kotlinx.coroutines.launch
  * Tier 3 — Device + Biometric ZK Proof Screen
  *
  * Flow:
- * 1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
- * 2. User taps "SCAN BIOMETRIC" → BiometricPrompt
- * 3. Biometric success → DeviceTierGate.generateProof()
- * 4. Proof result shown → claims displayed
- * 5. Auto-finish (deep link) or stay (registration mode)
+ *   1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
+ *   2. User taps "SCAN BIOMETRIC" → BiometricPrompt
+ *   3. Biometric success → DeviceTierGate.generateProof()
+ *   4. Proof result shown → claims displayed
+ *   5. Auto-finish (deep link) or stay (registration mode)
  *
  * Intent extras (deep link flow):
- * "domain"    → verifier domain e.g. "discord.com"
- * "challenge" → server challenge hex
- * "callback"  → POST url
+ *   "domain"    → verifier domain e.g. "discord.com"
+ *   "challenge" → server challenge hex
+ *   "callback"  → POST url
  * ═══════════════════════════════════════════════════════════════
  */
 class DeviceTierActivity : AppCompatActivity() {
@@ -184,10 +184,8 @@ class DeviceTierActivity : AppCompatActivity() {
 
     // ── ZK Proof ──────────────────────────────────────────────────────────────
     private fun onBiometricSuccess(signature: java.security.Signature) {
-        val callbackShort = if (zkCallback.isEmpty()) "NO CALLBACK URL" 
-                           else zkCallback.take(50)
-        updateStatus("⚡ GENERATING ZK PROOF", colorCyan,
-            "→ ${callbackShort}")
+        val mode = if (zkCallback.isEmpty()) "REGISTRATION MODE" else zkCallback.take(45)
+        updateStatus("⚡ GENERATING ZK PROOF", colorCyan, mode)
         haptic()
 
         lifecycleScope.launch {
@@ -236,10 +234,15 @@ class DeviceTierActivity : AppCompatActivity() {
         scrollView.post { scrollView.fullScroll(View.FOCUS_DOWN) }
 
         if (zkCallback.isNotEmpty()) {
+            // Deep link / auth mode — auto finish, website gets notified
             android.os.Handler(mainLooper).postDelayed({
                 setResult(RESULT_OK)
                 finish()
             }, 2000)
+        } else {
+            // Registration mode — stay on screen, show success
+            updateStatus("✅ DEVICE REGISTERED", colorGreen,
+                "TIER 3 IDENTITY READY · USE FROM WEBSITE")
         }
     }
 
@@ -381,12 +384,11 @@ class DeviceTierActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(px(16), px(16), px(16), px(16))
         }
-        // ✅ FIX: Added the missing closing bracket `)` right below here
         inner.addView(TextView(this).apply {
             text = "WHAT WILL BE PROVEN"; textSize = 9f
             setTextColor(Color.parseColor("#445566"))
             letterSpacing = 0.15f; typeface = Typeface.DEFAULT_BOLD
-        }) 
+        })
         inner.addView(spacer(12))
         inner.addView(buildMerkleVisual())
         inner.addView(spacer(14))
