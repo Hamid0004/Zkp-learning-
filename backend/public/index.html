@@ -83,17 +83,7 @@
       font-family:'JetBrains Mono',monospace; color:rgba(138,148,173,0.8);
       font-size:12px; letter-spacing:1.5px; text-transform:uppercase;
     }
-
-    /* ── Updated CSS for Device Switching ── */
-    .desktop-section { display: block; }
-    .mobile-section { display: none; }
-    
-    @media (max-width: 768px) {
-      .desktop-section { display: none !important; }
-      .mobile-section { display: block !important; }
-    }
-    /* ────────────────────────────────────── */
-
+    .desktop-section { display:none; }
     #qr-container {
       display:inline-flex; justify-content:center; align-items:center;
       padding:18px; border-radius:20px; margin:28px 0 22px;
@@ -135,6 +125,7 @@
       font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:500;
       color:var(--neon-blue); text-transform:uppercase; letter-spacing:1.5px;
     }
+    .mobile-section { display:none; }
     .mobile-hint {
       font-family:'JetBrains Mono',monospace;
       font-size:11px; color:rgba(138,148,173,0.6);
@@ -391,6 +382,7 @@
   <div class="grid-bg"></div>
   <div class="toast hidden" id="toast"></div>
 
+  <!-- Blur Overlay — shows during proof verification -->
   <div class="blur-overlay" id="blur-overlay">
     <div class="overlay-content">
       <div class="big-spinner">
@@ -427,6 +419,7 @@
       <h2>ZK-PROTOCOL</h2>
       <p class="subtitle">Zero-Knowledge Identity Gateway</p>
 
+      <!-- DESKTOP: QR -->
       <div class="desktop-section" id="desktop-section">
         <div id="qr-container"></div>
         <div class="status-box">
@@ -438,9 +431,11 @@
         </p>
       </div>
 
+      <!-- MOBILE: Buttons -->
       <div class="mobile-section" id="mobile-section">
         <p class="mobile-hint">Tap to authenticate with<br/>your ZKP identity wallet</p>
 
+        <!-- [FIX 1] claim type: zkauth → is_adult -->
         <button class="zkauth-btn" onclick="zkAuthTap('is_adult')">
           <svg width="18" height="18" viewBox="0 0 62 62" fill="none">
             <path d="M31 5L9 14.5v15.8c0 12.8 9.5 24.8 22 27.7 12.5-2.9 22-14.9 22-27.7V14.5L31 5z"
@@ -452,6 +447,7 @@
           <span class="btn-badge">Passkey</span>
         </button>
 
+        <!-- [FIX 1] claim types: age→is_adult, dob→nationality, identity→is_human -->
         <div class="claim-row">
           <button class="claim-btn" onclick="zkAuthTap('is_adult')">
             <span class="claim-icon">👤</span>
@@ -480,6 +476,7 @@
       </div>
     </div>
 
+    <!-- Verifying / Searching Screen -->
     <div class="card hidden" id="verifying-card">
       <div class="verifying-screen">
         <div class="zk-spinner">
@@ -508,6 +505,7 @@
       </div>
     </div>
 
+    <!-- Success Card -->
     <div class="card hidden" id="success-card">
       <div class="success-icon-wrap">
         <svg viewBox="0 0 36 36"><polyline points="6,18 14,26 30,10"/></svg>
@@ -521,6 +519,7 @@
     </div>
   </div>
 
+  <!-- Galaxy Stars -->
   <script>
   (function () {
     const canvas = document.getElementById('starfield');
@@ -564,6 +563,7 @@
   })();
   </script>
 
+  <!-- Core Logic -->
   <script>
   const API_URL = window.location.origin + '/api';
   let sessionId = null, deepLink = null, pollInterval = null, toastTimer = null;
@@ -571,14 +571,22 @@
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && window.innerWidth < 768);
 
+  document.getElementById(isMobile ? 'mobile-section' : 'desktop-section').style.display = 'block';
+
   // ── Restore after app redirect ──────────────────────────────
   const _saved = sessionStorage.getItem('zkauth_session');
   if (_saved) {
     try {
       const _s = JSON.parse(_saved);
-      if (Date.now() - _s.t < 300000) {
-        sessionId = _s.id;
+      const _age = Date.now() - _s.t;
+      if (_age < 300000) {  // 5 min
+        sessionId     = _s.id;
+        pollStartTime = Date.now();  // reset timeout from now
         showVerifyingScreen();
+        // Step 1 + 2 already done (app was opened, biometric done)
+        setOStep(1, 'done');
+        setOStep(2, 'done');
+        setOStep(3, 'active');
         clearInterval(pollInterval);
         pollInterval = setInterval(checkStatus, 300);
       } else {
@@ -631,12 +639,33 @@
         cache: 'no-store',  // never cache — always fresh
       });
 
-      if (res.status === 404) { clearInterval(pollInterval); startSession(); return; }
+      if (res.status === 404) {
+        clearInterval(pollInterval);
+        sessionStorage.removeItem('zkauth_session');
+        // Only start new session if not in verifying mode
+        if (!document.getElementById('blur-overlay').classList.contains('active')) {
+          startSession();
+        } else {
+          hideVerifyingScreen();
+          showToast('Session expired — please try again');
+        }
+        return;
+      }
       if (!res.ok) return;
 
       const data = await res.json();
 
-      if (data.status === 'expired') { clearInterval(pollInterval); startSession(); return; }
+      if (data.status === 'expired') {
+        clearInterval(pollInterval);
+        sessionStorage.removeItem('zkauth_session');
+        if (!document.getElementById('blur-overlay').classList.contains('active')) {
+          startSession();
+        } else {
+          hideVerifyingScreen();
+          showToast('Session expired — please try again');
+        }
+        return;
+      }
 
       // ── Update status label ──────────────────────────────────
       const lbl = document.getElementById('status-label');
@@ -735,6 +764,7 @@
     if (state) el.classList.add(state);
   }
 
+  // Keep old setStep for verifying-card (unused now but harmless)
   function setStep(num, state) {
     const el = document.getElementById(`vstep-${num}`);
     if (!el) return;
