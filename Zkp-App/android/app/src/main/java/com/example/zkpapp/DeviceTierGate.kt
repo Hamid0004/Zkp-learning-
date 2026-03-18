@@ -133,20 +133,19 @@ object DeviceTierGate {
      * @return DeviceTierResult — success with proof JSON or error message
      */
     suspend fun generateProof(
-        context:   Context,
-        signature: Signature,
-        domain:    String,
-        challenge: String,
-        callback:  String,
-        sessionId: String = "",   // server session_id for poll completion
+        context:    Context,
+        signature:  Signature,
+        domain:     String,
+        challenge:  String,
+        callback:   String,
+        sessionId:  String = "",
+        onProgress: ((String) -> Unit)? = null,  // UI progress updates
     ): DeviceTierResult = withContext(Dispatchers.Default) {
         try {
             // ── Step 1: Collect biometric hash ────────────────────
-            // Sign challenge with authenticated signature
-            // SHA-256 of the signature bytes = biometric hash
-            // Raw biometric NEVER leaves secure enclave
+            onProgress?.invoke("STEP 1/3 · COLLECTING DEVICE DATA")
             signature.update(challenge.toByteArray(Charsets.UTF_8))
-            val sigBytes     = signature.sign()
+            val sigBytes      = signature.sign()
             val biometricHash = sha256Hex(sigBytes)
             Log.d(TAG, "✅ Biometric hash collected")
 
@@ -194,6 +193,7 @@ object DeviceTierGate {
             }.toString()
 
             // ── Step 7: Generate ZK proof (Rust/Plonky2) ──────────
+            onProgress?.invoke("STEP 2/3 · GENERATING ZK PROOF")
             Log.d(TAG, "⚡ Generating Tier 3 ZK proof...")
             val resultJson = generateDeviceProof(input)
             val result     = JSONObject(resultJson)
@@ -217,6 +217,7 @@ object DeviceTierGate {
 
             // ── Step 9: POST to server (skip if no callback — registration mode) ──
             if (callback.isNotEmpty()) {
+                onProgress?.invoke("STEP 3/3 · SUBMITTING TO SERVER")
                 val (ok, err) = postProofToCallback(callback, payload)
                 if (!ok) return@withContext DeviceTierResult.Error(err)
                 Log.i(TAG, "✅ Tier 3 proof submitted")

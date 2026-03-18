@@ -225,12 +225,178 @@
       to   { opacity:1; transform:translateX(-50%) translateY(0); }
     }
     .hidden { display:none !important; }
+
+    /* ── Blur Overlay ── */
+    .blur-overlay {
+      position:fixed; inset:0; z-index:100;
+      backdrop-filter:blur(12px) brightness(0.4);
+      -webkit-backdrop-filter:blur(12px) brightness(0.4);
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; pointer-events:none;
+      transition: opacity 0.3s ease;
+    }
+    .blur-overlay.active {
+      opacity:1; pointer-events:all;
+    }
+    .overlay-content {
+      display:flex; flex-direction:column;
+      align-items:center; gap:20px;
+      text-align:center;
+    }
+    .big-spinner {
+      width:80px; height:80px; position:relative;
+    }
+    .big-spinner::before {
+      content:''; position:absolute; inset:0;
+      border-radius:50%;
+      border:3px solid transparent;
+      border-top-color:var(--neon-blue);
+      border-right-color:var(--neon-blue);
+      animation:spin 0.9s linear infinite;
+    }
+    .big-spinner::after {
+      content:''; position:absolute; inset:10px;
+      border-radius:50%;
+      border:2px solid transparent;
+      border-top-color:var(--neon-purple);
+      border-left-color:var(--neon-purple);
+      animation:spin 0.6s linear infinite reverse;
+    }
+    .spinner-emoji {
+      position:absolute; inset:0;
+      display:flex; align-items:center;
+      justify-content:center; font-size:26px;
+    }
+    .overlay-title {
+      font-family:'Syne',sans-serif;
+      font-size:15px; font-weight:800;
+      letter-spacing:3px; text-transform:uppercase;
+      background:linear-gradient(110deg,var(--neon-blue),var(--neon-purple));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .overlay-steps {
+      display:flex; flex-direction:column; gap:8px;
+      min-width:220px;
+    }
+    .o-step {
+      display:flex; align-items:center; gap:10px;
+      font-family:'JetBrains Mono',monospace;
+      font-size:10px; letter-spacing:1px;
+      color:rgba(138,148,173,0.35);
+      transition:color 0.3s, text-shadow 0.3s;
+    }
+    .o-step.active {
+      color:var(--neon-blue);
+      text-shadow:0 0 8px rgba(0,210,255,0.4);
+    }
+    .o-step.done { color:var(--neon-green); }
+    .o-dot {
+      width:6px; height:6px; border-radius:50%;
+      background:currentColor; flex-shrink:0;
+    }
+    .o-step.active .o-dot { animation:dotPulse 1s ease-in-out infinite; }
+
+    /* ── Verifying Screen ── */
+    .verifying-screen {
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding: 32px 20px; text-align:center;
+    }
+    .zk-spinner {
+      width:72px; height:72px; margin:0 auto 28px;
+      position:relative;
+    }
+    .zk-spinner::before, .zk-spinner::after {
+      content:''; position:absolute; border-radius:50%;
+      border: 2px solid transparent;
+    }
+    .zk-spinner::before {
+      inset:0;
+      border-top-color: var(--neon-blue);
+      border-right-color: var(--neon-blue);
+      animation: spin 1s linear infinite;
+    }
+    .zk-spinner::after {
+      inset:8px;
+      border-top-color: var(--neon-purple);
+      border-left-color: var(--neon-purple);
+      animation: spin 0.7s linear infinite reverse;
+    }
+    .zk-spinner-icon {
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:24px;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    .verify-title {
+      font-size:16px; font-weight:800; letter-spacing:3px;
+      text-transform:uppercase;
+      background:linear-gradient(110deg,var(--neon-blue),var(--neon-purple));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      margin-bottom:8px;
+    }
+    .verify-sub {
+      font-family:'JetBrains Mono',monospace;
+      font-size:11px; color:rgba(138,148,173,0.6);
+      letter-spacing:1.5px; text-transform:uppercase;
+      margin-bottom:28px;
+    }
+    .verify-steps {
+      display:flex; flex-direction:column; gap:10px;
+      width:100%; max-width:280px;
+    }
+    .verify-step {
+      display:flex; align-items:center; gap:12px;
+      padding:10px 14px; border-radius:10px;
+      background:rgba(0,0,0,0.3);
+      border:1px solid rgba(255,255,255,0.05);
+      font-family:'JetBrains Mono',monospace;
+      font-size:10px; letter-spacing:1px;
+      color:rgba(138,148,173,0.4);
+      transition: all 0.3s ease;
+    }
+    .verify-step.active {
+      border-color:rgba(0,210,255,0.3);
+      color:var(--neon-blue);
+      background:rgba(0,210,255,0.05);
+      box-shadow: 0 0 12px rgba(0,210,255,0.1);
+    }
+    .verify-step.done {
+      border-color:rgba(0,255,136,0.3);
+      color:var(--neon-green);
+      background:rgba(0,255,136,0.04);
+    }
+    .step-dot {
+      width:8px; height:8px; border-radius:50%;
+      background:currentColor; flex-shrink:0;
+      animation: none;
+    }
+    .verify-step.active .step-dot {
+      animation: dotPulse 1s ease-in-out infinite;
+    }
   </style>
 </head>
 <body>
   <canvas id="starfield"></canvas>
   <div class="grid-bg"></div>
   <div class="toast hidden" id="toast"></div>
+
+  <!-- Blur Overlay — shows during proof verification -->
+  <div class="blur-overlay" id="blur-overlay">
+    <div class="overlay-content">
+      <div class="big-spinner">
+        <div class="spinner-emoji">🔐</div>
+      </div>
+      <div class="overlay-title">Verifying Identity</div>
+      <div class="overlay-steps">
+        <div class="o-step" id="ostep-1"><div class="o-dot"></div>App opened</div>
+        <div class="o-step" id="ostep-2"><div class="o-dot"></div>Biometric scan</div>
+        <div class="o-step" id="ostep-3"><div class="o-dot"></div>ZK proof generating</div>
+        <div class="o-step" id="ostep-4"><div class="o-dot"></div>Identity confirmed</div>
+      </div>
+    </div>
+  </div>
 
   <div class="scene">
     <div class="card" id="login-card">
@@ -307,6 +473,35 @@
         ">
           📱 &nbsp;Device Proof — No Passport Needed
         </button>
+      </div>
+    </div>
+
+    <!-- Verifying / Searching Screen -->
+    <div class="card hidden" id="verifying-card">
+      <div class="verifying-screen">
+        <div class="zk-spinner">
+          <div class="zk-spinner-icon">🔐</div>
+        </div>
+        <div class="verify-title">Verifying</div>
+        <div class="verify-sub" id="verify-sub-text">Waiting for proof…</div>
+        <div class="verify-steps">
+          <div class="verify-step" id="vstep-1">
+            <div class="step-dot"></div>
+            <span>App opened</span>
+          </div>
+          <div class="verify-step" id="vstep-2">
+            <div class="step-dot"></div>
+            <span>Biometric verified</span>
+          </div>
+          <div class="verify-step" id="vstep-3">
+            <div class="step-dot"></div>
+            <span>ZK proof generated</span>
+          </div>
+          <div class="verify-step" id="vstep-4">
+            <div class="step-dot"></div>
+            <span>Identity confirmed</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -403,7 +598,7 @@
         });
       }
 
-      pollInterval = setInterval(checkStatus, 2000);
+      pollInterval = setInterval(checkStatus, 500);
     } catch (err) {
       console.error('Session start failed:', err);
       const lbl = document.getElementById('status-label');
@@ -412,10 +607,15 @@
     }
   }
 
+  // ── Smart polling — exponential backoff + instant on completed ──────────
+  let pollFastCount = 0;  // track fast polls after app opens
+
   async function checkStatus() {
     if (!sessionId) return;
     try {
-      const res = await fetch(`${API_URL}/poll-status/${sessionId}`);
+      const res = await fetch(`${API_URL}/poll-status/${sessionId}`, {
+        cache: 'no-store',  // never cache — always fresh
+      });
 
       if (res.status === 404) { clearInterval(pollInterval); startSession(); return; }
       if (!res.ok) return;
@@ -424,28 +624,37 @@
 
       if (data.status === 'expired') { clearInterval(pollInterval); startSession(); return; }
 
+      // ── Update status label ──────────────────────────────────
       const lbl = document.getElementById('status-label');
       if (lbl) {
         const labels = {
           pending  : 'Awaiting Encrypted Link…',
           scanning : 'Scan Detected — Awaiting Biometric…',
           proving  : 'Generating ZK Proof…',
-          completed: 'Verified!',
+          completed: '✅ Verified!',
         };
         lbl.textContent = labels[data.status] || 'Awaiting Encrypted Link…';
       }
+      // ── Animate verify steps ──────────────────────────────
+      updateVerifySteps(data.status);
 
+      // ── Completed → instant redirect ────────────────────────
       if (data.status === 'completed') {
         clearInterval(pollInterval);
+
+        // Save session data
         localStorage.setItem('zkp_session', JSON.stringify({
           nullifier   : data.nullifier    || 'Unknown',
           proof       : data.proof        || '',
           metadata    : data.metadata     || {},
           claim_result: data.claim_result || {},
         }));
+
+        // Show success briefly then INSTANT redirect
         showSuccess(data.nullifier);
       }
-    } catch (err) { console.error('Poll error:', err); }
+
+    } catch (err) { /* silent fail — next poll will retry */ }
   }
 
   // Mobile: tap → deep link
@@ -466,12 +675,16 @@
         body   : JSON.stringify({ sessionId }),
       }).catch(() => {});
 
-      window.location.href = link;
+      // Show verifying screen immediately
+      showVerifyingScreen();
 
+      // Start polling BEFORE opening app
       clearInterval(pollInterval);
-      pollInterval = setInterval(checkStatus, 2000);
+      pollFastCount = 0;
+      pollInterval = setInterval(checkStatus, 300);
 
-      showToast('Opening ZKP App…');
+      // Small delay so polling starts before app opens
+      setTimeout(() => { window.location.href = link; }, 100);
     } catch (err) {
       showToast('Connection error — try again');
     }
@@ -481,7 +694,45 @@
     document.getElementById('login-card').classList.add('hidden');
     document.getElementById('success-card').classList.remove('hidden');
     document.getElementById('nullifier-val').textContent = nullifier || '—';
-    setTimeout(() => { window.location.href = 'dashboard.html'; }, 2000);
+    // 300ms flash then instant redirect — user sees verified, then dashboard
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 300);
+  }
+
+  // ── Verifying screen functions ──────────────────────────────────
+  function showVerifyingScreen() {
+    // Blur everything behind, show overlay on top
+    document.getElementById('blur-overlay').classList.add('active');
+    setOStep(1, 'active');
+  }
+
+  function hideVerifyingScreen() {
+    document.getElementById('blur-overlay').classList.remove('active');
+  }
+
+  function setOStep(num, state) {
+    const el = document.getElementById(`ostep-${num}`);
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    if (state) el.classList.add(state);
+  }
+
+  // Keep old setStep for verifying-card (unused now but harmless)
+  function setStep(num, state) {
+    const el = document.getElementById(`vstep-${num}`);
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    if (state) el.classList.add(state);
+  }
+
+  function updateVerifySteps(status) {
+    if (status === 'scanning') {
+      setOStep(1, 'done'); setOStep(2, 'active');
+    } else if (status === 'proving') {
+      setOStep(1, 'done'); setOStep(2, 'done'); setOStep(3, 'active');
+    } else if (status === 'completed') {
+      setOStep(1, 'done'); setOStep(2, 'done');
+      setOStep(3, 'done'); setOStep(4, 'active');
+    }
   }
 
   function showToast(msg) {

@@ -106,12 +106,20 @@ class DeviceTierActivity : AppCompatActivity() {
                 DeviceTierGate.warmup()
                 isReady = true
                 runOnUiThread {
-                    updateStatus("✅ READY", colorGreen, "TAP BUTTON BELOW TO SCAN BIOMETRIC")
                     btnScan.isEnabled = true
                     btnScan.alpha     = 1f
-                    btnScan.animate().scaleX(1.04f).scaleY(1.04f).setDuration(150).withEndAction {
-                        btnScan.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
-                    }.start()
+
+                    if (zkCallback.isNotEmpty()) {
+                        // Deep link mode — auto trigger biometric, no button needed
+                        updateStatus("👆 AUTHENTICATING", colorCyan, "PLACE FINGER ON SENSOR")
+                        onScanTapped()
+                    } else {
+                        // Registration mode — show button
+                        updateStatus("✅ READY", colorGreen, "TAP BUTTON BELOW TO SCAN BIOMETRIC")
+                        btnScan.animate().scaleX(1.04f).scaleY(1.04f).setDuration(150).withEndAction {
+                            btnScan.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+                        }.start()
+                    }
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Init failed: ${e.message}", e)
@@ -186,19 +194,27 @@ class DeviceTierActivity : AppCompatActivity() {
 
     // ── ZK Proof ──────────────────────────────────────────────────────────────
     private fun onBiometricSuccess(signature: java.security.Signature) {
-        val mode = if (zkCallback.isEmpty()) "REGISTRATION MODE" else zkCallback.take(45)
-        updateStatus("⚡ GENERATING ZK PROOF", colorCyan, mode)
         haptic()
+        progressBar.visibility = View.VISIBLE
 
         lifecycleScope.launch {
+            // Step 1: Collecting device data
+            updateStatus("⚡ STEP 1/3", colorCyan, "COLLECTING DEVICE DATA...")
+
             val result = DeviceTierGate.generateProof(
-                context   = this@DeviceTierActivity,
-                signature = signature,
-                domain    = zkDomain,
-                challenge = zkChallenge,
-                callback  = zkCallback,
-                sessionId = zkSession,
+                context    = this@DeviceTierActivity,
+                signature  = signature,
+                domain     = zkDomain,
+                challenge  = zkChallenge,
+                callback   = zkCallback,
+                sessionId  = zkSession,
+                onProgress = { step ->
+                    runOnUiThread {
+                        updateStatus("⚡ $step", colorCyan, "")
+                    }
+                }
             )
+
             runOnUiThread {
                 progressBar.visibility = View.GONE
                 resetScanButton()

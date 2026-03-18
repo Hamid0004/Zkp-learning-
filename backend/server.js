@@ -363,6 +363,10 @@ app.post('/api/upload-proof', (req, res) => {
 
 // ── POLL STATUS ───────────────────────────────────────────────
 app.get('/api/poll-status/:session_id', (req, res) => {
+  // No cache — always fresh response
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+
   const session = sessions.get(req.params.session_id);
   if (!session) return res.status(404).json({ error: 'Session not found', error_code: 'SESSION_NOT_FOUND' });
 
