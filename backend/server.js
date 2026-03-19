@@ -6,7 +6,7 @@ const crypto  = require('crypto');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-const SESSION_TTL_MS   = 10 * 60 * 1000;
+const SESSION_TTL_MS   = 15 * 60 * 1000;  // 15 min — enough for QR scan flow
 const SCAN_TTL_MS      = 5  * 60 * 1000;  // 5 min after scan
 const CLEANUP_INTERVAL = 60 * 1000;
 
@@ -158,10 +158,13 @@ app.get('/api/start-session', (req, res) => {
     session_id : session.sessionId,
     challenge  : session.challenge,
     expires_in : SESSION_TTL_MS / 1000,
+    // QR encodes deep_link — app opens directly when scanned
+    // No session lookup needed — all params in deep_link
     qr_data    : Buffer.from(JSON.stringify({
       sessionId : session.sessionId,
       domain,
       challenge : session.challenge,
+      deep_link : session.deepLink,   // ← full zkauth:// link
       timestamp : Date.now(),
     })).toString('base64'),
 
