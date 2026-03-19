@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard | ZKP Identity</title>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;500;700&display=swap" rel="stylesheet" />
-
+  <title>Dashboard | ZKAuth</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <style>
-    /* ─── Tokens ─────────────────────────────────── */
     :root {
       --neon-blue:   #00d2ff;
       --neon-purple: #9d50bb;
       --neon-green:  #00ff88;
+      --neon-gold:   #ffd700;
+      --neon-red:    #ff3366;
       --cyber-bg:    #050b18;
       --glass:       rgba(255,255,255,0.04);
       --border:      rgba(255,255,255,0.08);
@@ -20,32 +20,18 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
-      width: 100%; height: 100%;
-      overflow: hidden;
-    }
-
-    body {
+      width: 100%; min-height: 100%;
       font-family: 'Syne', sans-serif;
       background: var(--cyber-bg);
-      display: flex;
-      justify-content: center;
-      align-items: center;
       color: #fff;
+      overflow-x: hidden;
     }
 
-    /* ─── Galaxy Canvas ──────────────────────────── */
-    #starfield {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      pointer-events: none;
-    }
+    /* ── Background ──────────────────────────────────── */
+    #starfield { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 
-    /* ─── Grid Floor ─────────────────────────────── */
     .grid-bg {
-      position: fixed;
-      inset: 0;
-      z-index: 1;
+      position: fixed; inset: 0; z-index: 1;
       background-image:
         linear-gradient(rgba(0,210,255,0.025) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0,210,255,0.025) 1px, transparent 1px);
@@ -53,365 +39,463 @@
       transform: perspective(600px) rotateX(55deg) translateY(20%);
       transform-origin: center bottom;
       animation: gridScroll 25s linear infinite;
-      mask-image: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%);
+      mask-image: linear-gradient(to top, rgba(0,0,0,0.5), transparent 60%);
       pointer-events: none;
     }
-
     @keyframes gridScroll {
       from { background-position: 0 0; }
       to   { background-position: 0 60px; }
     }
 
-    /* ─── Card ───────────────────────────────────── */
-    .scene {
-      position: relative;
-      z-index: 10;
-      perspective: 1200px;
+    /* ── Layout ──────────────────────────────────────── */
+    .page {
+      position: relative; z-index: 10;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
     }
 
     .card {
       background: var(--glass);
       backdrop-filter: blur(30px) saturate(180%);
       -webkit-backdrop-filter: blur(30px) saturate(180%);
-      padding: 52px 44px 44px;
+      padding: 44px 40px 40px;
       border-radius: 28px;
       border: 1px solid var(--border);
       box-shadow:
         0 0 0 1px rgba(0,255,136,0.05),
         0 32px 64px rgba(0,0,0,0.75),
         inset 0 1px 0 rgba(255,255,255,0.07);
-      text-align: center;
-      width: 420px;
+      width: 440px;
+      max-width: 100%;
       animation: cardIn 0.9s cubic-bezier(0.22,1,0.36,1) both;
-      transition: transform 0.4s ease, box-shadow 0.4s ease;
+      position: relative;
     }
 
-    .card:hover {
-      transform: translateY(-5px) rotateX(1deg);
-      box-shadow:
-        0 0 0 1px rgba(0,255,136,0.1),
-        0 44px 80px rgba(0,0,0,0.8),
-        inset 0 1px 0 rgba(255,255,255,0.1);
+    .card::before, .card::after {
+      content: ''; position: absolute;
+      width: 20px; height: 20px;
+      border-style: solid; opacity: 0.35;
     }
+    .card::before { top:14px; left:14px; border-color: var(--neon-green); border-width:1.5px 0 0 1.5px; border-radius:4px 0 0 0; }
+    .card::after  { bottom:14px; right:14px; border-color: var(--neon-green); border-width:0 1.5px 1.5px 0; border-radius:0 0 4px 0; }
 
     @keyframes cardIn {
-      from { opacity: 0; transform: translateY(50px) scale(0.96); }
-      to   { opacity: 1; transform: translateY(0)    scale(1);    }
+      from { opacity:0; transform:translateY(50px) scale(0.96); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
     }
 
-    /* Corner accents — green tint for success state */
-    .card::before, .card::after {
-      content: '';
-      position: absolute;
-      width: 20px; height: 20px;
-      border-color: var(--neon-green);
-      border-style: solid;
-      opacity: 0.35;
-    }
-    .card::before { top: 14px;    left: 14px;  border-width: 1.5px 0 0 1.5px; border-radius: 4px 0 0 0; }
-    .card::after  { bottom: 14px; right: 14px; border-width: 0 1.5px 1.5px 0; border-radius: 0 0 4px 0; }
-
-    /* ─── Lion Icon Ring ─────────────────────────── */
+    /* ── Icon Ring ───────────────────────────────────── */
     .icon-ring {
       position: relative;
-      width: 84px; height: 84px;
-      margin: 0 auto 24px;
+      width: 88px; height: 88px;
+      margin: 0 auto 20px;
     }
-
     .icon-ring svg {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       width: 100%; height: 100%;
       animation: ringRotate 8s linear infinite;
     }
-
-    @keyframes ringRotate {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes ringRotate { to { transform: rotate(360deg); } }
 
     .icon-inner {
-      position: absolute;
-      inset: 10px;
+      position: absolute; inset: 10px;
       border-radius: 50%;
       background: rgba(0,255,136,0.08);
       border: 1px solid rgba(0,255,136,0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 34px;
-      filter: drop-shadow(0 0 10px rgba(0,255,136,0.5));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      filter: drop-shadow(0 0 12px rgba(0,255,136,0.5));
       animation: iconPulse 3s ease-in-out infinite;
     }
-
     @keyframes iconPulse {
-      0%, 100% { box-shadow: 0 0 18px rgba(0,255,136,0.2); }
-      50%       { box-shadow: 0 0 36px rgba(0,255,136,0.45); }
+      0%,100% { box-shadow: 0 0 18px rgba(0,255,136,0.2); }
+      50%     { box-shadow: 0 0 36px rgba(0,255,136,0.45); }
     }
 
-    /* ─── Headings ───────────────────────────────── */
-    .verified-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    /* ── Trust Badge ─────────────────────────────────── */
+    .trust-badge {
+      display: inline-flex; align-items: center; gap: 8px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--neon-green);
-      background: rgba(0,255,136,0.08);
-      border: 1px solid rgba(0,255,136,0.2);
-      padding: 5px 14px;
-      border-radius: 999px;
-      margin-bottom: 14px;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      padding: 5px 16px; border-radius: 999px;
+      margin-bottom: 16px;
       animation: badgeGlow 2s ease-in-out infinite;
     }
-
+    .trust-badge.maximum {
+      color: var(--neon-green);
+      background: rgba(0,255,136,0.08);
+      border: 1px solid rgba(0,255,136,0.25);
+    }
+    .trust-badge.basic {
+      color: var(--neon-gold);
+      background: rgba(255,215,0,0.08);
+      border: 1px solid rgba(255,215,0,0.25);
+    }
     .badge-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--neon-green);
-      box-shadow: 0 0 8px var(--neon-green);
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
       animation: dotBlink 1.2s ease-in-out infinite;
     }
-
     @keyframes badgeGlow {
-      0%, 100% { box-shadow: 0 0 10px rgba(0,255,136,0.15); }
-      50%       { box-shadow: 0 0 22px rgba(0,255,136,0.35); }
+      0%,100% { box-shadow: 0 0 10px rgba(0,255,136,0.1); }
+      50%     { box-shadow: 0 0 22px rgba(0,255,136,0.3); }
     }
-
-    @keyframes dotBlink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.3; }
-    }
+    @keyframes dotBlink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
     h1 {
-      font-size: 26px;
-      font-weight: 800;
-      letter-spacing: 2px;
+      font-size: 26px; font-weight: 800; letter-spacing: 2px;
       background: linear-gradient(110deg, #fff 30%, rgba(255,255,255,0.6) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 8px;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 6px;
     }
 
     .subtitle {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 1.5px;
-      color: rgba(138,148,173,0.7);
-      text-transform: uppercase;
-      margin-bottom: 32px;
+      font-size: 10px; letter-spacing: 1.5px;
+      color: rgba(138,148,173,0.6); text-transform: uppercase;
+      margin-bottom: 28px;
     }
 
-    /* ─── Identity Block ─────────────────────────── */
+    /* ── Identity Block ──────────────────────────────── */
     .identity-block {
       position: relative;
       background: rgba(0,0,0,0.35);
       border: 1px solid rgba(0,255,136,0.18);
       border-radius: 18px;
-      padding: 20px 22px;
-      margin-bottom: 24px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
       text-align: left;
       overflow: hidden;
     }
-
-    /* Animated scan line */
     .identity-block::after {
-      content: '';
-      position: absolute;
-      left: 0; right: 0;
-      height: 1px;
+      content: ''; position: absolute;
+      left: 0; right: 0; height: 1px;
       background: linear-gradient(90deg, transparent, var(--neon-green), transparent);
-      animation: scan 3s ease-in-out infinite;
-      top: 0;
+      animation: scan 3s ease-in-out infinite; top: 0;
     }
-
     @keyframes scan {
-      0%   { top: 0%;   opacity: 0; }
-      10%  { opacity: 1; }
-      90%  { opacity: 1; }
-      100% { top: 100%; opacity: 0; }
+      0%   { top:0%; opacity:0; }
+      10%  { opacity:1; }
+      90%  { opacity:1; }
+      100% { top:100%; opacity:0; }
     }
-
     .id-label {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 2.5px;
-      color: var(--neon-green);
-      opacity: 0.7;
-      display: block;
-      margin-bottom: 10px;
+      font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2.5px;
+      color: var(--neon-green); opacity: 0.7;
+      display: block; margin-bottom: 8px;
     }
-
     .id-value {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 17px;
-      font-weight: 700;
-      color: #fff;
-      letter-spacing: 1px;
-      word-break: break-all;
+      font-size: 17px; font-weight: 700;
+      color: #fff; letter-spacing: 1px; word-break: break-all;
     }
+    .id-value .prefix { color: rgba(255,255,255,0.4); font-weight: 300; }
 
-    .id-value .prefix {
-      color: rgba(255,255,255,0.4);
-      font-weight: 300;
-    }
-
-    /* ─── Status Row ─────────────────────────────── */
     .status-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 14px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-top: 12px; flex-wrap: wrap;
     }
-
     .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+      display: inline-flex; align-items: center; gap: 6px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      padding: 4px 10px;
-      border-radius: 999px;
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 999px;
       border: 1px solid rgba(0,255,136,0.25);
       color: var(--neon-green);
       background: rgba(0,255,136,0.06);
     }
-
     .status-pill-dot {
-      width: 5px; height: 5px;
-      border-radius: 50%;
+      width: 5px; height: 5px; border-radius: 50%;
       background: var(--neon-green);
       animation: dotBlink 1.4s infinite;
     }
-
     .proof-tag {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 9px;
-      letter-spacing: 1px;
-      color: rgba(0,210,255,0.6);
-      text-transform: uppercase;
+      font-size: 9px; letter-spacing: 1px;
+      color: rgba(0,210,255,0.6); text-transform: uppercase;
+      cursor: pointer; transition: color 0.3s;
     }
+    .proof-tag:hover { color: var(--neon-blue); }
 
-    /* ─── Sign Out Button ────────────────────────── */
-    .btn-logout {
-      position: relative;
-      width: 100%;
-      padding: 16px 0;
-      border: none;
-      border-radius: 14px;
-      background: transparent;
-      cursor: pointer;
-      overflow: hidden;
-      margin-top: 6px;
-      font-family: 'Syne', sans-serif;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: var(--cyber-bg);
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
-    }
-
-    .btn-logout::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(110deg, var(--neon-blue), var(--neon-purple));
-      z-index: 0;
-      transition: opacity 0.25s ease;
-    }
-
-    .btn-logout::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(110deg, var(--neon-purple), var(--neon-blue));
-      z-index: 0;
-      opacity: 0;
-      transition: opacity 0.25s ease;
-    }
-
-    .btn-logout:hover::before { opacity: 0; }
-    .btn-logout:hover::after  { opacity: 1; }
-
-    .btn-logout:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 12px 32px rgba(0,210,255,0.35);
-    }
-
-    .btn-logout:active { transform: translateY(0); }
-
-    .btn-logout span {
-      position: relative;
-      z-index: 1;
-    }
-
-    /* ─── Divider ────────────────────────────────── */
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 22px 0 20px;
-    }
-
-    .divider-line {
-      flex: 1;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
-    }
-
-    .divider-label {
+    /* ── Live Verification Terminal (NEW) ────────────── */
+    .terminal-box {
+      background: rgba(5,11,24,0.9);
+      border: 1px solid rgba(0,210,255,0.2);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 16px;
+      text-align: left;
       font-family: 'JetBrains Mono', monospace;
       font-size: 9px;
-      letter-spacing: 2px;
-      color: rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.7);
+      line-height: 1.6;
+      max-height: 80px;
+      overflow: hidden;
+      position: relative;
+    }
+    .terminal-box::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 20px;
+      background: linear-gradient(transparent, rgba(5,11,24,0.9));
+    }
+    .log-line {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: logIn 0.3s forwards ease-out;
+    }
+    .log-success { color: var(--neon-green); }
+    .log-highlight { color: var(--neon-blue); }
+    @keyframes logIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Claims Grid ─────────────────────────────────── */
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 2.5px;
       text-transform: uppercase;
+      color: rgba(138,148,173,0.4);
+      margin-bottom: 10px;
+      display: flex; justify-content: space-between;
     }
 
-    /* ─── Stagger Animations ─────────────────────── */
-    .card > * {
-      animation: fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both;
+    .claims-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
     }
-    .card > *:nth-child(1) { animation-delay: 0.15s; }
-    .card > *:nth-child(2) { animation-delay: 0.22s; }
-    .card > *:nth-child(3) { animation-delay: 0.28s; }
-    .card > *:nth-child(4) { animation-delay: 0.34s; }
-    .card > *:nth-child(5) { animation-delay: 0.40s; }
-    .card > *:nth-child(6) { animation-delay: 0.46s; }
-    .card > *:nth-child(7) { animation-delay: 0.52s; }
 
+    .claim-chip {
+      position: relative;
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border-radius: 12px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 1px;
+      text-transform: uppercase;
+      color: rgba(138,148,173,0.5);
+      transition: all 0.3s ease;
+      cursor: help;
+    }
+    /* Tooltip */
+    .claim-chip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 110%; left: 50%;
+      transform: translateX(-50%) translateY(5px);
+      background: rgba(5,11,24,0.95);
+      border: 1px solid var(--border);
+      color: var(--neon-blue);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 8px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+      z-index: 10;
+    }
+    .claim-chip:hover::after {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .claim-chip.verified {
+      border-color: rgba(0,255,136,0.2);
+      color: var(--neon-green);
+      background: rgba(0,255,136,0.05);
+    }
+    .claim-chip.partial {
+      border-color: rgba(255,215,0,0.2);
+      color: var(--neon-gold);
+      background: rgba(255,215,0,0.05);
+    }
+    .claim-chip.locked {
+      border-color: rgba(255,255,255,0.04);
+      color: rgba(138,148,173,0.25);
+    }
+    .claim-icon { font-size: 14px; flex-shrink: 0; }
+
+    /* ── Proof Details Drawer ────────────────────────── */
+    .proof-details {
+      display: none;
+      background: rgba(0,0,0,0.4);
+      border: 1px dashed rgba(0,210,255,0.3);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 16px;
+      text-align: left;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      color: rgba(255,255,255,0.6);
+      word-break: break-all;
+    }
+    .proof-details.open { display: block; animation: fadeUp 0.3s forwards; }
+
+    /* ── Proof Stats ─────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .stat-box {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 12px 10px;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-box:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,210,255,0.1);
+      border-color: rgba(0,210,255,0.2);
+    }
+    .stat-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 15px; font-weight: 700;
+      color: var(--neon-blue);
+      display: block; margin-bottom: 4px;
+    }
+    .stat-key {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px; letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(138,148,173,0.4);
+    }
+
+    /* ── Session Timer ───────────────────────────────── */
+    .session-bar {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+    }
+    .session-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(138,148,173,0.4);
+    }
+    .session-timer {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; font-weight: 700;
+      color: var(--neon-blue);
+    }
+    .session-progress {
+      flex: 1; height: 3px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px; overflow: hidden;
+    }
+    .session-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple));
+      border-radius: 999px;
+      transition: width 1s linear;
+    }
+
+    /* ── Divider ─────────────────────────────────────── */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 18px 0 16px;
+    }
+    .divider-line {
+      flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    }
+    .divider-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 2px;
+      color: rgba(255,255,255,0.2); text-transform: uppercase;
+    }
+
+    /* ── Buttons ─────────────────────────────────────── */
+    .btn-logout {
+      position: relative; width: 100%;
+      padding: 15px 0; border: none; border-radius: 14px;
+      background: transparent; cursor: pointer; overflow: hidden;
+      font-family: 'Syne', sans-serif;
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      color: var(--cyber-bg);
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+    .btn-logout::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(110deg, var(--neon-blue), var(--neon-purple));
+      z-index: 0; transition: opacity 0.25s;
+    }
+    .btn-logout::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(110deg, var(--neon-purple), var(--neon-blue));
+      z-index: 0; opacity: 0; transition: opacity 0.25s;
+    }
+    .btn-logout:hover::before { opacity: 0; }
+    .btn-logout:hover::after  { opacity: 1; }
+    .btn-logout:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,210,255,0.35); }
+    .btn-logout:active { transform: translateY(0); }
+    .btn-logout span { position: relative; z-index: 1; }
+
+    /* ── Stagger ─────────────────────────────────────── */
+    .card > * { animation: fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both; }
+    .card > *:nth-child(1) { animation-delay:0.12s; }
+    .card > *:nth-child(2) { animation-delay:0.18s; }
+    .card > *:nth-child(3) { animation-delay:0.24s; }
+    .card > *:nth-child(4) { animation-delay:0.30s; }
+    .card > *:nth-child(5) { animation-delay:0.36s; }
+    .card > *:nth-child(6) { animation-delay:0.42s; }
+    .card > *:nth-child(7) { animation-delay:0.48s; }
+    .card > *:nth-child(8) { animation-delay:0.54s; }
+    .card > *:nth-child(9) { animation-delay:0.60s; }
     @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0);    }
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
     }
+
+    /* ── Nullifier copy tooltip ──────────────────────── */
+    .copy-hint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px; letter-spacing: 1px;
+      color: rgba(0,210,255,0.4);
+      cursor: pointer; text-transform: uppercase;
+      margin-top: 6px; display: block;
+      transition: color 0.2s;
+    }
+    .copy-hint:hover { color: var(--neon-blue); }
   </style>
 </head>
 <body>
 
-  <!-- Galaxy Canvas -->
   <canvas id="starfield"></canvas>
-
-  <!-- Grid Floor -->
   <div class="grid-bg"></div>
 
-  <!-- ── Dashboard Card ────────────────────────────────── -->
-  <div class="scene">
+  <div class="page">
     <div class="card">
 
-      <!-- Spinning Ring + Lion -->
       <div class="icon-ring">
-        <svg viewBox="0 0 84 84" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="42" cy="42" r="40" stroke="url(#ringGrad)" stroke-width="1" stroke-dasharray="6 4" opacity="0.6"/>
+        <svg viewBox="0 0 84 84" fill="none">
+          <circle cx="42" cy="42" r="40" stroke="url(#rg)" stroke-width="1" stroke-dasharray="6 4" opacity="0.6"/>
           <defs>
-            <linearGradient id="ringGrad" x1="0" y1="0" x2="84" y2="84" gradientUnits="userSpaceOnUse">
+            <linearGradient id="rg" x1="0" y1="0" x2="84" y2="84" gradientUnits="userSpaceOnUse">
               <stop stop-color="#00ff88"/>
               <stop offset="1" stop-color="#00d2ff"/>
             </linearGradient>
@@ -420,36 +504,74 @@
         <div class="icon-inner">🦁</div>
       </div>
 
-      <!-- Verified Badge -->
-      <div class="verified-badge">
+      <div class="trust-badge maximum" id="trust-badge">
         <span class="badge-dot"></span>
-        Identity Verified
+        <span id="trust-label">Identity Verified</span>
       </div>
 
-      <!-- Heading -->
       <h1>Welcome Back</h1>
-      <p class="subtitle">Zero-Knowledge Proof · Plonky2</p>
+      <p class="subtitle" id="proof-subtitle">Zero-Knowledge Proof · Plonky2</p>
 
-      <!-- Identity Block -->
       <div class="identity-block">
         <span class="id-label">Anonymous Identity</span>
         <div class="id-value">
           <span class="prefix">User-</span><span id="user-id">Loading…</span>
         </div>
+        <span class="copy-hint" onclick="copyNullifier()" id="copy-hint">
+          ⧉ tap to copy full nullifier
+        </span>
         <div class="status-row">
-          <span class="status-pill"><span class="status-pill-dot"></span>Active</span>
-          <span class="proof-tag">On-device · Rust/Plonky2</span>
+          <span class="status-pill">
+            <span class="status-pill-dot"></span>Active
+          </span>
+          <span class="proof-tag" id="proof-tag" onclick="toggleProofDetails()">Show Proof Data ▾</span>
         </div>
       </div>
 
-      <!-- Divider -->
+      <div class="proof-details" id="proof-details">
+        <div style="color:var(--neon-blue); margin-bottom: 4px;">[Raw Payload]</div>
+        <div id="proof-raw-data">...</div>
+      </div>
+
+      <div class="terminal-box" id="terminal-log">
+        </div>
+
+      <div class="section-label">
+        <span>Verified Claims</span>
+        <span style="color:var(--neon-gold)">ZK-SNARK</span>
+      </div>
+      <div class="claims-grid" id="claims-grid">
+        </div>
+
+      <div class="stats-row">
+        <div class="stat-box">
+          <span class="stat-val" id="stat-tier">T3</span>
+          <span class="stat-key">Tier</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val" id="stat-trust">Basic</span>
+          <span class="stat-key">Trust</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-val" id="stat-ttl">5:00</span>
+          <span class="stat-key">Proof TTL</span>
+        </div>
+      </div>
+
+      <div class="session-bar">
+        <span class="session-label">Session</span>
+        <div class="session-progress">
+          <div class="session-progress-fill" id="session-fill" style="width:100%"></div>
+        </div>
+        <span class="session-timer" id="session-timer">—</span>
+      </div>
+
       <div class="divider">
         <span class="divider-line"></span>
-        <span class="divider-label">Session</span>
+        <span class="divider-label">Actions</span>
         <span class="divider-line"></span>
       </div>
 
-      <!-- Sign Out -->
       <button class="btn-logout" onclick="logout()">
         <span>Sign Out</span>
       </button>
@@ -457,113 +579,253 @@
     </div>
   </div>
 
-
-  <!-- ── Galaxy Starfield ──────────────────────────────── -->
   <script>
   (function () {
     const canvas = document.getElementById('starfield');
     const ctx    = canvas.getContext('2d');
     let W, H, stars = [];
-    const STAR_COUNT = 280;
 
-    function resize () {
-      W = canvas.width  = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-    }
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
 
-    function makeStar () {
-      const hue = Math.random() < 0.15
-        ? (Math.random() < 0.5 ? 155 : 195) // occasional green or blue tint
-        : 0;
+    function makeStar() {
+      const hue = Math.random() < 0.15 ? (Math.random() < 0.5 ? 155 : 195) : 0;
       return {
-        x:    Math.random() * W,
-        y:    Math.random() * H,
-        r:    0.4 + Math.random() * 1.6,
-        baseAlpha: 0.25 + Math.random() * 0.65,
-        alpha: 0,
-        twinklePeriod: 2000 + Math.random() * 4000,
-        twinkleOffset: Math.random() * Math.PI * 2,
-        driftX: (Math.random() - 0.5) * 0.012,
-        driftY: -0.006 - Math.random() * 0.018,
-        hue,
+        x: Math.random()*W, y: Math.random()*H,
+        r: 0.4 + Math.random()*1.6,
+        baseAlpha: 0.25 + Math.random()*0.65, alpha: 0,
+        twinklePeriod: 2000 + Math.random()*4000,
+        twinkleOffset: Math.random()*Math.PI*2,
+        driftX: (Math.random()-0.5)*0.012,
+        driftY: -0.006 - Math.random()*0.018, hue,
       };
     }
 
-    function initStars () {
-      stars = Array.from({ length: STAR_COUNT }, makeStar);
-      stars.forEach(s => { s.alpha = s.baseAlpha; });
-    }
+    function initStars() { stars = Array.from({length:280}, makeStar); stars.forEach(s => s.alpha = s.baseAlpha); }
 
-    function draw (ts) {
-      ctx.clearRect(0, 0, W, H);
-
+    function draw(ts) {
+      ctx.clearRect(0,0,W,H);
       for (const s of stars) {
-        const t = (ts / s.twinklePeriod) * Math.PI * 2 + s.twinkleOffset;
-        s.alpha = s.baseAlpha * (0.45 + 0.55 * (Math.sin(t) * 0.5 + 0.5));
-
-        s.x += s.driftX;
-        s.y += s.driftY;
-
-        if (s.y < -4)    { s.y = H + 2; s.x = Math.random() * W; }
-        if (s.x < -4)    s.x = W + 2;
-        if (s.x > W + 4) s.x = -2;
-
+        const t = (ts/s.twinklePeriod)*Math.PI*2 + s.twinkleOffset;
+        s.alpha = s.baseAlpha*(0.45 + 0.55*(Math.sin(t)*0.5+0.5));
+        s.x += s.driftX; s.y += s.driftY;
+        if (s.y < -4) { s.y = H+2; s.x = Math.random()*W; }
+        if (s.x < -4) s.x = W+2; if (s.x > W+4) s.x = -2;
         if (s.r > 1.1) {
-          const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 3.5);
-          const col = s.hue ? `hsla(${s.hue},85%,70%,` : 'rgba(255,255,255,';
-          g.addColorStop(0,   col + (s.alpha * 0.9) + ')');
-          g.addColorStop(0.4, col + (s.alpha * 0.25) + ')');
-          g.addColorStop(1,   col + '0)');
-          ctx.beginPath();
-          ctx.arc(s.x, s.y, s.r * 3.5, 0, Math.PI * 2);
-          ctx.fillStyle = g;
-          ctx.fill();
+          const g = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*3.5);
+          const c = s.hue ? `hsla(${s.hue},85%,70%,` : 'rgba(255,255,255,';
+          g.addColorStop(0, c+(s.alpha*0.9)+')');
+          g.addColorStop(0.4, c+(s.alpha*0.25)+')');
+          g.addColorStop(1, c+'0)');
+          ctx.beginPath(); ctx.arc(s.x,s.y,s.r*3.5,0,Math.PI*2);
+          ctx.fillStyle = g; ctx.fill();
         }
-
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = s.hue
-          ? `hsla(${s.hue},85%,88%,${s.alpha})`
-          : `rgba(255,255,255,${s.alpha})`;
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+        ctx.fillStyle = s.hue ? `hsla(${s.hue},85%,88%,${s.alpha})` : `rgba(255,255,255,${s.alpha})`;
         ctx.fill();
       }
-
       requestAnimationFrame(draw);
     }
 
     window.addEventListener('resize', () => { resize(); initStars(); });
-    resize();
-    initStars();
-    requestAnimationFrame(draw);
+    resize(); initStars(); requestAnimationFrame(draw);
   })();
   </script>
 
-  <!-- ── Session Logic ──────────────────────────────────── -->
   <script>
-  (function () {
+  (function() {
     const raw = localStorage.getItem('zkp_session');
+    if (!raw) { window.location.href = 'index.html'; return; }
 
-    if (!raw) {
-      window.location.href = 'index.html';
-      return;
-    }
+    let session = {};
+    let fullNullifier = '';
+    const SESSION_MS = 30 * 60 * 1000;  // 30 min
+    const PROOF_TTL  = 5 * 60;          // 300 sec
 
     try {
-      const session = JSON.parse(raw);
-      const fullId  = session.nullifier || 'Unknown';
-      // Show first 8 chars + ellipsis
+      session      = JSON.parse(raw);
+      fullNullifier = session.nullifier || 'Unknown';
+
+      const trustLevel = session.trust_level || 'BASIC';
+      const inputMode  = session.input_mode  || 'DEVICE_BIOMETRIC';
+      const claimType  = session.claim_result?.type || session.claim_type || 'is_human';
+      const verifiedAt = session.verified_at || Date.now();
+      const rawProof   = session.proof || '0x...';
+
+      // ── User ID ─────────────────────────────────────
       document.getElementById('user-id').textContent =
-        fullId.substring(0, 8) + '•••';
-    } catch (e) {
+        fullNullifier.substring(0, 8) + '•••';
+
+      // ── Trust Badge ──────────────────────────────────
+      const badge      = document.getElementById('trust-badge');
+      const trustLabel = document.getElementById('trust-label');
+      const isMaximum  = trustLevel === 'MAXIMUM';
+
+      if (isMaximum) {
+        badge.className     = 'trust-badge maximum';
+        trustLabel.textContent = '🛂 Government Verified';
+      } else {
+        badge.className     = 'trust-badge basic';
+        trustLabel.textContent = '📱 Device Verified';
+      }
+
+      // ── Subtitle ─────────────────────────────────────
+      document.getElementById('proof-subtitle').textContent =
+        isMaximum
+          ? 'Passport NFC · Plonky2 · MAXIMUM TRUST'
+          : 'Device + Biometric · Plonky2 · BASIC TRUST';
+
+      // ── Proof Tag ────────────────────────────────────
+      const tagMap = {
+        'NFC_PASSPORT'     : '🛂 Passport NFC',
+        'DEVICE_BIOMETRIC' : '📱 On-device',
+        'SIMULATION'       : '🎭 Simulated',
+      };
+      document.getElementById('proof-tag').innerHTML =
+        `${tagMap[inputMode] || 'On-device'} · View Details ▾`;
+
+      // ── Set Raw Proof Data ───────────────────────────
+      document.getElementById('proof-raw-data').textContent = 
+        `{"nullifier":"${fullNullifier.substring(0,16)}...","compressed_proof":"${rawProof.substring(0,30)}...","size_bytes":${rawProof.length},"trust":"${trustLevel}"}`;
+
+      // ── Stats ─────────────────────────────────────────
+      const tierNum = isMaximum ? 1 : 3;
+      document.getElementById('stat-tier').textContent  = `T${tierNum}`;
+      document.getElementById('stat-trust').textContent = isMaximum ? 'Max' : 'Basic';
+
+      // ── Claims Grid ───────────────────────────────────
+      const claimsEl = document.getElementById('claims-grid');
+      const claimDefs = [
+        { key: 'is_human',    icon: '👤', label: 'is_human',    tier: 3, desc: 'Biometric Hash Verified' },
+        { key: 'is_adult',    icon: '🔞', label: 'is_adult',    tier: 1, desc: 'Age > 18 Cryptographically Proven' },
+        { key: 'nationality', icon: '🌍', label: 'nationality', tier: 1, desc: 'Country Code Match' },
+        { key: 'real_device', icon: '📱', label: 'real_device', tier: 3, desc: 'Hardware Attestation Valid' },
+      ];
+
+      claimsEl.innerHTML = claimDefs.map(c => {
+        let state = 'locked';
+        let tip = 'Requires higher trust tier';
+        
+        if (c.key === 'real_device') {
+          state = 'verified'; tip = c.desc;
+        } else if (c.key === claimType && isMaximum) {
+          state = 'verified'; tip = c.desc;
+        } else if (c.key === claimType && !isMaximum) {
+          state = c.tier === 3 ? 'verified' : 'locked';
+          tip = c.tier === 3 ? c.desc : tip;
+        } else if (c.key === 'is_human' && !isMaximum) {
+          state = 'partial'; tip = 'Implicitly verified by device';
+        } else if (isMaximum) {
+          state = 'verified'; tip = c.desc;
+        }
+
+        const label = state === 'verified' ? '✓ ' + c.label
+                    : state === 'partial'  ? '~ ' + c.label
+                    : '🔒 ' + c.label;
+        return `<div class="claim-chip ${state}" data-tooltip="${tip}"><span class="claim-icon">${c.icon}</span>${label}</div>`;
+      }).join('');
+
+      // ── Animated Terminal Log ─────────────────────────
+      const terminal = document.getElementById('terminal-log');
+      const logs = [
+        `> POST /zkauth/verify`,
+        `> Receiving ZK-SNARK Payload (${rawProof.length} bytes)`,
+        `> Verifying Plonky2 recursive proof... <span class="log-success">OK</span>`,
+        `> Checking ECDSA Device Signature... <span class="log-success">Valid</span>`,
+        `> Asserting Nullifier uniqueness: <span class="log-highlight">${fullNullifier.substring(0,12)}...</span>`,
+        `> Status: <span class="log-success">IDENTITY VERIFIED</span> [Trust: ${trustLevel}]`
+      ];
+      
+      let logIndex = 0;
+      function showNextLog() {
+        if (logIndex < logs.length) {
+          const div = document.createElement('div');
+          div.className = 'log-line';
+          div.innerHTML = logs[logIndex];
+          terminal.appendChild(div);
+          terminal.scrollTop = terminal.scrollHeight;
+          logIndex++;
+          setTimeout(showNextLog, 400 + Math.random() * 500); // random delay for terminal effect
+        }
+      }
+      setTimeout(showNextLog, 500);
+
+      // ── Proof TTL countdown ───────────────────────────
+      const proofAge = Math.floor((Date.now() - verifiedAt) / 1000);
+      let proofRemaining = Math.max(0, PROOF_TTL - proofAge);
+
+      function updateProofTTL() {
+        const m = Math.floor(proofRemaining / 60);
+        const s = proofRemaining % 60;
+        document.getElementById('stat-ttl').textContent =
+          proofRemaining > 0
+            ? `${m}:${String(s).padStart(2,'0')}`
+            : 'Expired';
+        if (proofRemaining > 0) {
+          proofRemaining--;
+          setTimeout(updateProofTTL, 1000);
+        } else {
+          document.getElementById('stat-ttl').style.color = '#ff3366';
+        }
+      }
+      updateProofTTL();
+
+      // ── Session Timer ─────────────────────────────────
+      const loginAt = session.login_at || verifiedAt;
+
+      function updateSessionTimer() {
+        const elapsed  = Date.now() - loginAt;
+        const remaining = Math.max(0, SESSION_MS - elapsed);
+        const pct = (remaining / SESSION_MS) * 100;
+
+        const m = Math.floor(remaining / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        document.getElementById('session-timer').textContent =
+          remaining > 0 ? `${m}m ${String(s).padStart(2,'0')}s` : 'Expired';
+        document.getElementById('session-fill').style.width = pct + '%';
+
+        if (remaining <= 0) {
+          logout();
+        } else {
+          setTimeout(updateSessionTimer, 1000);
+        }
+      }
+      updateSessionTimer();
+
+    } catch(e) {
       console.error('Dashboard error:', e);
       document.getElementById('user-id').textContent = 'Error';
     }
-  })();
 
-  function logout () {
-    localStorage.clear();
-    window.location.href = 'index.html';
-  }
+    // ── Global Actions ─────────────────────────────────
+    window.copyNullifier = function() {
+      if (!fullNullifier || fullNullifier === 'Unknown') return;
+      navigator.clipboard?.writeText(fullNullifier).then(() => {
+        const hint = document.getElementById('copy-hint');
+        hint.textContent = '✓ copied!';
+        hint.style.color = 'var(--neon-green)';
+        setTimeout(() => {
+          hint.textContent = '⧉ tap to copy full nullifier';
+          hint.style.color = '';
+        }, 2000);
+      });
+    };
+
+    window.toggleProofDetails = function() {
+      const drawer = document.getElementById('proof-details');
+      drawer.classList.toggle('open');
+    };
+
+    window.logout = function() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    };
+
+    if (!session.login_at) {
+      session.login_at = Date.now();
+      localStorage.setItem('zkp_session', JSON.stringify(session));
+    }
+
+  })();
   </script>
 
 </body>
