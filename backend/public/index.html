@@ -382,7 +382,6 @@
   <div class="grid-bg"></div>
   <div class="toast hidden" id="toast"></div>
 
-  <!-- Blur Overlay — shows during proof verification -->
   <div class="blur-overlay" id="blur-overlay">
     <div class="overlay-content">
       <div class="big-spinner">
@@ -419,8 +418,23 @@
       <h2>ZK-PROTOCOL</h2>
       <p class="subtitle">Zero-Knowledge Identity Gateway</p>
 
-      <!-- DESKTOP: QR -->
       <div class="desktop-section" id="desktop-section">
+
+        <div style="display:flex;gap:8px;margin-bottom:16px;justify-content:center;">
+          <button id="btn-tier1" onclick="switchDesktopTier(1)"
+            style="flex:1;padding:8px 12px;border-radius:10px;border:1px solid rgba(0,255,136,0.4);
+                   background:rgba(0,255,136,0.08);color:#00ff88;font-family:'JetBrains Mono',monospace;
+                   font-size:9px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;">
+            🛂 PASSPORT
+          </button>
+          <button id="btn-tier3" onclick="switchDesktopTier(3)"
+            style="flex:1;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,215,0,0.2);
+                   background:transparent;color:rgba(255,215,0,0.4);font-family:'JetBrains Mono',monospace;
+                   font-size:9px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;">
+            📱 DEVICE
+          </button>
+        </div>
+
         <div id="qr-container"></div>
         <div class="status-box">
           <div class="loader-dot"></div>
@@ -431,11 +445,9 @@
         </p>
       </div>
 
-      <!-- MOBILE: Buttons -->
       <div class="mobile-section" id="mobile-section">
         <p class="mobile-hint">Tap to authenticate with<br/>your ZKP identity wallet</p>
 
-        <!-- [FIX 1] claim type: zkauth → is_adult -->
         <button class="zkauth-btn" onclick="zkAuthTap('is_adult')">
           <svg width="18" height="18" viewBox="0 0 62 62" fill="none">
             <path d="M31 5L9 14.5v15.8c0 12.8 9.5 24.8 22 27.7 12.5-2.9 22-14.9 22-27.7V14.5L31 5z"
@@ -447,7 +459,6 @@
           <span class="btn-badge">Passkey</span>
         </button>
 
-        <!-- [FIX 1] claim types: age→is_adult, dob→nationality, identity→is_human -->
         <div class="claim-row">
           <button class="claim-btn" onclick="zkAuthTap('is_adult')">
             <span class="claim-icon">👤</span>
@@ -476,7 +487,6 @@
       </div>
     </div>
 
-    <!-- Verifying / Searching Screen -->
     <div class="card hidden" id="verifying-card">
       <div class="verifying-screen">
         <div class="zk-spinner">
@@ -505,21 +515,113 @@
       </div>
     </div>
 
-    <!-- Success Card -->
     <div class="card hidden" id="success-card">
       <div class="success-icon-wrap">
         <svg viewBox="0 0 36 36"><polyline points="6,18 14,26 30,10"/></svg>
       </div>
       <h2 class="success-title">VERIFIED</h2>
-      <p class="subtitle">Proof integrated successfully.</p>
+      <p class="subtitle" id="success-subtitle">Proof integrated successfully.</p>
+
+      <div id="trust-badge" style="
+        display:inline-flex; align-items:center; gap:8px;
+        padding:6px 16px; border-radius:999px; margin:12px 0;
+        font-family:'JetBrains Mono',monospace; font-size:10px;
+        letter-spacing:1.5px; font-weight:700;
+      ">VERIFYING…</div>
+
       <div class="nullifier-container">
         <span class="nullifier-label">Nullifier Hash</span>
         <div class="nullifier-val" id="nullifier-val">…</div>
       </div>
     </div>
+
+    <div class="card hidden" id="no-proof-card" style="text-align:center;padding:40px 32px;">
+      <div style="font-size:48px;margin-bottom:16px;">⏱️</div>
+      <h2 style="background:linear-gradient(110deg,#ffd700,#ff9500);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                 font-size:18px;letter-spacing:3px;margin-bottom:8px;">
+        PROOF NOT RECEIVED
+      </h2>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:10px;
+                color:rgba(138,148,173,0.6);letter-spacing:1px;margin-bottom:24px;">
+        APP OPENED BUT NO PROOF WAS GENERATED
+      </p>
+
+      <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);
+                  border-radius:14px;padding:16px 20px;margin-bottom:24px;text-align:left;">
+        <p style="font-family:'JetBrains Mono',monospace;font-size:10px;
+                  color:rgba(138,148,173,0.7);line-height:1.8;margin:0;">
+          This may happen if:<br/>
+          • You cancelled the fingerprint scan<br/>
+          • Your device does not have a registered identity<br/>
+          • The app could not reach the server
+        </p>
+      </div>
+
+      <button onclick="location.reload()"
+        style="width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;
+               background:linear-gradient(110deg,rgba(255,215,0,0.15),rgba(255,149,0,0.15));
+               border:1px solid rgba(255,215,0,0.3);color:#ffd700;
+               font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+               letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;">
+        TRY AGAIN
+      </button>
+    </div>
+
+    <div class="card hidden" id="rejected-card" style="text-align:center;padding:40px 32px;">
+      <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+      <h2 style="background:linear-gradient(110deg,#ff3366,#ff6b6b);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                 font-size:18px;letter-spacing:3px;margin-bottom:8px;">
+        PROOF INSUFFICIENT
+      </h2>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:10px;
+                color:rgba(138,148,173,0.6);letter-spacing:1px;margin-bottom:24px;">
+        THIS WEBSITE REQUIRES A HIGHER TRUST LEVEL
+      </p>
+
+      <div style="background:rgba(255,51,102,0.06);border:1px solid rgba(255,51,102,0.2);
+                  border-radius:14px;padding:16px 20px;margin-bottom:24px;text-align:left;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;
+                    color:rgba(138,148,173,0.5);margin-bottom:8px;letter-spacing:1px;">
+          CLAIM REQUESTED
+        </div>
+        <div id="rejected-claim" style="color:#fff;font-size:14px;font-weight:700;
+                                        margin-bottom:12px;">—</div>
+
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+                        color:rgba(138,148,173,0.4);letter-spacing:1px;">REQUIRED</div>
+            <div id="rejected-required"
+                 style="color:#ff3366;font-weight:700;font-size:12px;margin-top:4px;">—</div>
+          </div>
+          <div style="flex:1;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;
+                        color:rgba(138,148,173,0.4);letter-spacing:1px;">PROVIDED</div>
+            <div id="rejected-provided"
+                 style="color:#ffd700;font-weight:700;font-size:12px;margin-top:4px;">—</div>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-family:'JetBrains Mono',monospace;font-size:10px;
+                color:rgba(138,148,173,0.5);letter-spacing:1px;margin-bottom:20px;">
+        SCAN YOUR NFC PASSPORT IN THE APP<br/>TO VERIFY THIS CLAIM
+      </p>
+
+      <button onclick="location.reload()"
+        style="width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;
+               background:linear-gradient(110deg,rgba(0,210,255,0.15),rgba(157,80,187,0.15));
+               border:1px solid rgba(0,210,255,0.3);color:var(--neon-blue);
+               font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+               letter-spacing:1.5px;text-transform:uppercase;">
+        TRY AGAIN
+      </button>
+    </div>
+
   </div>
 
-  <!-- Galaxy Stars -->
   <script>
   (function () {
     const canvas = document.getElementById('starfield');
@@ -563,10 +665,10 @@
   })();
   </script>
 
-  <!-- Core Logic -->
   <script>
   const API_URL = window.location.origin + '/api';
   let sessionId = null, deepLink = null, pollInterval = null, toastTimer = null;
+  let pollFastCount = 0, pollStartTime = 0;
 
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && window.innerWidth < 768);
@@ -597,18 +699,25 @@
 
   if (!isMobile) startSession();
 
-  async function startSession(claimType = 'is_adult') {
+  let currentClaimType = 'is_adult';
+  let currentTier      = 1;
+  let qrRefreshTimer   = null;
+
+  async function startSession(claimType = 'is_adult', tier = 1) {
     clearInterval(pollInterval);
+    clearTimeout(qrRefreshTimer);
+    currentClaimType = claimType;
+    currentTier      = tier;
     sessionId = null; deepLink = null;
 
     try {
       const domain = window.location.hostname || 'zkpapp.local';
-      const res    = await fetch(`${API_URL}/start-session?claim=${claimType}&domain=${domain}`);
+      const res    = await fetch(`${API_URL}/start-session?claim=${claimType}&domain=${domain}&tier=${tier}`);
       const data   = await res.json();
       sessionId    = data.session_id;
       deepLink     = data.deep_link;
 
-      // [FIX 3] QR encodes full deep link — app opens directly when scanned
+      // Generate QR
       const qrDiv = document.getElementById('qr-container');
       if (qrDiv && deepLink) {
         qrDiv.innerHTML = '';
@@ -621,19 +730,55 @@
       }
 
       pollInterval = setInterval(checkStatus, 500);
+
+      // ── Auto-refresh QR at 8 min (before 10 min expiry) ──
+      // So user always has a valid QR — no manual refresh needed
+      qrRefreshTimer = setTimeout(() => {
+        const lbl = document.getElementById('status-label');
+        if (lbl) lbl.textContent = 'Refreshing QR…';
+        startSession(currentClaimType, currentTier);
+      }, 8 * 60 * 1000);
+
     } catch (err) {
-      console.error('Session start failed:', err);
       const lbl = document.getElementById('status-label');
-      if (lbl) { lbl.textContent = 'OFFLINE'; lbl.style.color = '#ff4b4b'; }
+      if (lbl) { lbl.textContent = 'OFFLINE — Retrying…'; lbl.style.color = '#ff4b4b'; }
       setTimeout(() => startSession(claimType), 5000);
     }
   }
 
-  // ── Smart polling — exponential backoff + instant on completed ──────────
-  let pollFastCount = 0;  // track fast polls after app opens
+  // ── Smart polling ────────────────────────────────────────────────────────
+  const PROOF_WAIT_MS = 30000;  // 30 sec — if no proof, auto refresh
 
   async function checkStatus() {
     if (!sessionId) return;
+
+    // ── Auto-refresh if proof not arriving ───────────────────
+    // User opened app, but proof not coming = no real passport
+    // After 30 sec → hide overlay → refresh login page
+    const overlayActive = document.getElementById('blur-overlay')
+      ?.classList.contains('active');
+
+    if (overlayActive && pollStartTime > 0) {
+      const waited = Date.now() - pollStartTime;
+      const remaining = Math.max(0, Math.ceil((PROOF_WAIT_MS - waited) / 1000));
+
+      // Update countdown in overlay
+      const subText = document.getElementById('verify-sub-text');
+      if (subText && waited > 5000) {  // show after 5 sec
+        subText.textContent = `Waiting for proof… (${remaining}s)`;
+      }
+
+      if (waited > PROOF_WAIT_MS) {
+        // Timeout — no proof arrived
+        clearInterval(pollInterval);
+        sessionStorage.removeItem('zkauth_session');
+        hideVerifyingScreen();
+
+        // Show friendly message + auto refresh
+        showNoProofScreen();
+        return;
+      }
+    }
     try {
       const res = await fetch(`${API_URL}/poll-status/${sessionId}`, {
         cache: 'no-store',  // never cache — always fresh
@@ -642,9 +787,8 @@
       if (res.status === 404) {
         clearInterval(pollInterval);
         sessionStorage.removeItem('zkauth_session');
-        // Only start new session if not in verifying mode
         if (!document.getElementById('blur-overlay').classList.contains('active')) {
-          startSession();
+          startSession(currentClaimType, currentTier);
         } else {
           hideVerifyingScreen();
           showToast('Session expired — please try again');
@@ -659,7 +803,7 @@
         clearInterval(pollInterval);
         sessionStorage.removeItem('zkauth_session');
         if (!document.getElementById('blur-overlay').classList.contains('active')) {
-          startSession();
+          startSession(currentClaimType);
         } else {
           hideVerifyingScreen();
           showToast('Session expired — please try again');
@@ -675,8 +819,10 @@
           scanning : 'Scan Detected — Awaiting Biometric…',
           proving  : 'Generating ZK Proof…',
           completed: '✅ Verified!',
+          rejected : '❌ Insufficient Trust Level',
         };
         lbl.textContent = labels[data.status] || 'Awaiting Encrypted Link…';
+        if (data.status === 'rejected') lbl.style.color = '#ff3366';
       }
       // ── Animate verify steps ──────────────────────────────
       updateVerifySteps(data.status);
@@ -693,7 +839,23 @@
         }));
         setOStep(1,'done'); setOStep(2,'done');
         setOStep(3,'done'); setOStep(4,'active');
-        setTimeout(() => showSuccess(data.nullifier), 200);
+        setTimeout(() => showSuccess(
+          data.nullifier,
+          data.trust_level || 'BASIC',
+          data.input_mode  || 'UNKNOWN'
+        ), 200);
+      }
+
+      // ── Rejected — insufficient trust ────────────────────────
+      if (data.status === 'rejected') {
+        clearInterval(pollInterval);
+        sessionStorage.removeItem('zkauth_session');
+        hideVerifyingScreen();
+        showInsufficientTrust(
+          data.claim_type  || 'unknown',
+          data.required    || 'MAXIMUM',
+          data.provided    || 'BASIC'
+        );
       }
 
     } catch (err) { /* silent fail — next poll will retry */ }
@@ -728,7 +890,7 @@
       // Start polling
       clearInterval(pollInterval);
       pollFastCount = 0;
-      pollStartTime = 0;
+      pollStartTime = Date.now();
       pollInterval = setInterval(checkStatus, 300);
 
       // Open app after 50ms
@@ -738,11 +900,65 @@
     }
   }
 
-  function showSuccess(nullifier) {
+  // ── No Proof Screen — timeout after 30 sec ─────────────────────────────
+  function showNoProofScreen() {
+    document.getElementById('login-card').classList.add('hidden');
+
+    const card = document.getElementById('no-proof-card');
+    if (card) card.classList.remove('hidden');
+  }
+
+  // ── Insufficient Trust Screen ───────────────────────────────
+  function showInsufficientTrust(claimType, required, provided) {
+    // Hide blur overlay
+    hideVerifyingScreen();
+
+    // Show rejection card
+    document.getElementById('login-card').classList.add('hidden');
+
+    const card = document.getElementById('rejected-card');
+    if (card) {
+      card.classList.remove('hidden');
+
+      const claimLabel = {
+        'is_adult'    : 'Age 18+ Verification',
+        'nationality' : 'Nationality Verification',
+        'is_human'    : 'Human Verification',
+      }[claimType] || claimType;
+
+      document.getElementById('rejected-claim').textContent  = claimLabel;
+      document.getElementById('rejected-required').textContent = required;
+      document.getElementById('rejected-provided').textContent = provided;
+    }
+  }
+
+  function showSuccess(nullifier, trustLevel = 'BASIC', inputMode = 'UNKNOWN') {
     document.getElementById('login-card').classList.add('hidden');
     document.getElementById('success-card').classList.remove('hidden');
     document.getElementById('nullifier-val').textContent = nullifier || '—';
-    // 150ms — near instant redirect
+
+    // Trust badge
+    const badge    = document.getElementById('trust-badge');
+    const subtitle = document.getElementById('success-subtitle');
+    if (badge) {
+      const isMax = trustLevel === 'MAXIMUM';
+      badge.textContent  = isMax ? '🛂 MAXIMUM TRUST — GOVT VERIFIED' : '📱 BASIC TRUST — DEVICE VERIFIED';
+      badge.style.background   = isMax ? 'rgba(0,255,136,0.1)'  : 'rgba(255,215,0,0.1)';
+      badge.style.border       = isMax ? '1px solid rgba(0,255,136,0.4)' : '1px solid rgba(255,215,0,0.3)';
+      badge.style.color        = isMax ? '#00ff88' : '#ffd700';
+    }
+    if (subtitle) {
+      subtitle.textContent = trustLevel === 'MAXIMUM'
+        ? 'Government-verified identity confirmed.'
+        : 'Device-verified identity confirmed.';
+    }
+
+    // Save trust level for dashboard
+    const session = JSON.parse(localStorage.getItem('zkp_session') || '{}');
+    session.trust_level = trustLevel;
+    session.input_mode  = inputMode;
+    localStorage.setItem('zkp_session', JSON.stringify(session));
+
     setTimeout(() => { window.location.href = 'dashboard.html'; }, 150);
   }
 
@@ -781,6 +997,34 @@
       setOStep(1, 'done'); setOStep(2, 'done');
       setOStep(3, 'done'); setOStep(4, 'active');
     }
+  }
+
+  // Desktop tier switcher
+  function switchDesktopTier(tier) {
+    const claim = tier === 3 ? 'is_human' : 'is_adult';
+
+    // Update button styles
+    const t1 = document.getElementById('btn-tier1');
+    const t3 = document.getElementById('btn-tier3');
+    if (t1 && t3) {
+      if (tier === 1) {
+        t1.style.borderColor = 'rgba(0,255,136,0.4)';
+        t1.style.background  = 'rgba(0,255,136,0.08)';
+        t1.style.color       = '#00ff88';
+        t3.style.borderColor = 'rgba(255,215,0,0.2)';
+        t3.style.background  = 'transparent';
+        t3.style.color       = 'rgba(255,215,0,0.4)';
+      } else {
+        t3.style.borderColor = 'rgba(255,215,0,0.5)';
+        t3.style.background  = 'rgba(255,215,0,0.08)';
+        t3.style.color       = '#ffd700';
+        t1.style.borderColor = 'rgba(0,255,136,0.2)';
+        t1.style.background  = 'transparent';
+        t1.style.color       = 'rgba(0,255,136,0.4)';
+      }
+    }
+    // Refresh QR with new tier
+    startSession(claim, tier);
   }
 
   function showToast(msg) {

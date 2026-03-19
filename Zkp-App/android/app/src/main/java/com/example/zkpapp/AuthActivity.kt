@@ -28,28 +28,28 @@ import org.json.JSONObject
 import java.util.Arrays
 
 /**
- * AuthActivity v2.0 — ZKAuth Deep Link + Passkey Model
+ * AuthActivity v3.0 — ZKAuth Deep Link + Passkey Model + Smart Trust Routing
  *
  * ═══════════════════════════════════════════════════════════════
  * v1.0 → v2.0 Upgrades:
  *
  * 🔴 [NEW] Deep Link Handler — handleZkAuthIntent()
- *    Receives: zkauth://auth?domain=X&claim=Y&challenge=Z&callback=W
- *    Parses + validates all 4 params. Routes to ZK proof flow.
+ * Receives: zkauth://auth?domain=X&claim=Y&challenge=Z&callback=W
+ * Parses + validates all 4 params. Routes to ZK proof flow.
  *
  * 🔴 [NEW] ZK Proof Flow — startZkProofFlow() — 3 paths:
- *    PATH A: hasIdentity() + isSessionValid() → proof immediately
- *    PATH B: hasPersistentIdentity() + session expired → biometric
- *            → loadFromDisk() → extendSession() → proof
- *    PATH C: no identity → redirect to PassportActivity
+ * PATH A: hasIdentity() + isSessionValid() → proof immediately
+ * PATH B: hasPersistentIdentity() + session expired → biometric
+ * → loadFromDisk() → extendSession() → proof
+ * PATH C: no identity → redirect to PassportActivity
  *
  * 🔴 [NEW] Biometric subtitle = claim label
- *    "Age 18+ verify karne ke liye" shown on fingerprint dialog.
- *    User knows exactly what is being proven.
+ * "Age 18+ verify karne ke liye" shown on fingerprint dialog.
+ * User knows exactly what is being proven.
  *
  * 🔴 [NEW] generateAndSubmitProof() — full ZK pipeline
- *    proof cache check → buildPassportJson → SecurityGate.generateClaimProof
- *    → buildZkAuthPayload → ECDSA sign → HTTP POST → finish()
+ * proof cache check → buildPassportJson → SecurityGate.generateClaimProof
+ * → buildZkAuthPayload → ECDSA sign → HTTP POST → finish()
  *
  * 🟡 [NEW] isDeepLinkIntent() — routes ZKAuth vs vault unlock
  * 🟡 Existing vault unlock / create / restore — unchanged, preserved.
@@ -74,12 +74,14 @@ class AuthActivity : AppCompatActivity() {
     private var zkClaim:     String? = null
     private var zkChallenge: String? = null
     private var zkCallback:  String? = null
-    private var zkTier:      Int     = TIER_PASSPORT  // default = Tier 1
+    private var zkTier:      Int     = TIER_PASSPORT
+    private var zkSession:   String  = ""  // server session_id
 
     companion object {
         private const val TAG = "AuthActivity"
-        private val VALID_CLAIMS = setOf("is_adult", "nationality", "is_human")
-        private val VALID_TIERS  = setOf(1, 3)   // 2 = coming soon
+        private val VALID_CLAIMS          = setOf("is_adult", "nationality", "is_human")
+        private val VALID_TIERS           = setOf(1, 3)
+        private val PASSPORT_ONLY_CLAIMS  = setOf("is_adult", "nationality")
         const val TIER_PASSPORT  = 1
         const val TIER_DEVICE    = 3
     }
@@ -164,6 +166,9 @@ class AuthActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Deep link flow — never trigger global lock
+        if (isDeepLinkIntent(intent)) return
+
         val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
         if (isFromGlobalLock && viewModel.isVaultExists(this) &&
             viewModel.uiState.value !is AuthUiState.TamperDetected) {
@@ -196,10 +201,10 @@ class AuthActivity : AppCompatActivity() {
      * Parses and validates zkauth:// intent params, then routes to ZK flow.
      *
      * Required params:
-     *   domain    — website requesting proof (e.g. "discord.com")
-     *   claim     — "is_adult" | "nationality" | "is_human"
-     *   challenge — anti-replay nonce (min 32 hex chars)
-     *   callback  — HTTPS POST URL for proof submission
+     * domain    — website requesting proof (e.g. "discord.com")
+     * claim     — "is_adult" | "nationality" | "is_human"
+     * challenge — anti-replay nonce (min 32 hex chars)
+     * callback  — HTTPS POST URL for proof submission
      */
     private fun handleZkAuthIntent(intent: Intent) {
         val uri = intent.data ?: run { showZkError("Invalid login request.\nPlease try again from the website."); return }
@@ -258,10 +263,35 @@ class AuthActivity : AppCompatActivity() {
                 finish()
             }
             else -> {
-                // Tier 1 — Passport (default)
-                // Scope nullifier to requesting domain
+                // v3.0 Smart routing — check what user has vs what claim needs
                 IdentityStorage.setVerifierDomain(domain)
-                startZkProofFlow()
+
+                val hasReal = IdentityStorage.hasPersistentIdentity(this) ||
+                    (IdentityStorage.hasIdentity() && IdentityStorage.hasRealPassport())
+                val claimNeedsPassport = claim in PASSPORT_ONLY_CLAIMS
+
+                when {
+                    hasReal -> {
+                        Log.i(TAG, "✅ Real passport → Tier 1 flow")
+                        startZkProofFlow()
+                    }
+                    claimNeedsPassport -> {
+                        Log.w(TAG, "⚠️ $claim needs passport — showing upgrade dialog")
+                        showClaimUpgradeDialog(claim, domain, challenge, callback, session)
+                    }
+                    else -> {
+                        Log.i(TAG, "📱 $claim OK with Tier 3 → DeviceTierActivity")
+                        val i = Intent(this, DeviceTierActivity::class.java).apply {
+                            putExtra("domain",    domain)
+                            putExtra("challenge", challenge)
+                            putExtra("callback",  callback)
+                            putExtra("session",   session)
+                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
+                        startActivity(i)
+                        finish()
+                    }
+                }
             }
         }
     }
@@ -271,16 +301,9 @@ class AuthActivity : AppCompatActivity() {
     // =========================================================
 
     private fun startZkProofFlow() {
-        // Hard block — simulation data cannot satisfy website proof request
-        // Only real NFC passport (dg1 length >= 180 hex chars) allowed
+        // v3.0: Simulation allowed — trust_level = BASIC in proof
         if (IdentityStorage.hasIdentity() && !IdentityStorage.hasRealPassport()) {
-            Log.e(TAG, "❌ Simulation identity rejected for external claim")
-            showZkError("Real passport required.\nPlease scan your passport via NFC.")
-            window.decorView.postDelayed({
-                startActivity(Intent(this, PassportActivity::class.java))
-                finish()
-            }, 2000)
-            return
+            Log.w(TAG, "⚠️ Simulation — proof will be BASIC trust")
         }
 
         when {
@@ -427,8 +450,11 @@ class AuthActivity : AppCompatActivity() {
                 proofJson = rawProof
             }
 
-            // Step 5: sign payload
-            val payload = buildZkAuthPayload(proofJson, domain, claim, challenge)
+            // Step 5: extract input_mode from proof → determines trust level
+            val inputMode = try {
+                JSONObject(proofJson).optString("input_mode", "UNKNOWN")
+            } catch (_: Exception) { "UNKNOWN" }
+            val payload = buildZkAuthPayload(proofJson, domain, claim, challenge, inputMode)
 
             // Step 6: submit
             Log.i(TAG, "📤 Posting to: $callback")
@@ -458,10 +484,11 @@ class AuthActivity : AppCompatActivity() {
     // =========================================================
 
     private fun buildZkAuthPayload(
-        proofJson: String,
-        domain:    String,
-        claim:     String,
-        challenge: String
+        proofJson:  String,
+        domain:     String,
+        claim:      String,
+        challenge:  String,
+        inputMode:  String = "UNKNOWN"
     ): String {
         return try {
             val obj        = JSONObject(proofJson)
@@ -469,12 +496,12 @@ class AuthActivity : AppCompatActivity() {
             val hwBinding  = obj.optString("hw_binding",        "")
             val validUntil = obj.optLong  ("valid_until",       0L)
             val compProof  = obj.optString("compressed_proof",  "")
-
-            val sigInput = "$challenge|$domain|$nullifier|$claim"
-            val devSig   = signWithDeviceKey(sigInput)
+            val trustLevel = if (inputMode == "NFC_PASSPORT") "MAXIMUM" else "BASIC"
+            val sigInput   = "$challenge|$domain|$nullifier|$claim"
+            val devSig     = signWithDeviceKey(sigInput)
 
             JSONObject().apply {
-                put("version",          "2.0")
+                put("version",          "3.0")
                 put("domain",           domain)
                 put("claim_type",       claim)
                 put("challenge",        challenge)
@@ -483,6 +510,9 @@ class AuthActivity : AppCompatActivity() {
                 put("valid_until",      validUntil)
                 put("compressed_proof", compProof)
                 put("device_sig",       devSig)
+                put("input_mode",       inputMode)
+                put("trust_level",      trustLevel)
+                if (zkSession.isNotEmpty()) put("session_id", zkSession)
                 put("timestamp",        System.currentTimeMillis())
             }.toString()
         } catch (e: Exception) {
@@ -509,16 +539,30 @@ class AuthActivity : AppCompatActivity() {
     private suspend fun postProofToCallback(url: String, payload: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.doOutput      = true
-                conn.connectTimeout = 10_000
-                conn.readTimeout    = 15_000
-                conn.setRequestProperty("Content-Type",    "application/json")
-                conn.setRequestProperty("X-ZKAuth-Version","2.0")
+                val finalUrl = url.replaceFirst("http://", "https://")
+                val conn = java.net.URL(finalUrl).openConnection() as java.net.HttpURLConnection
+                conn.requestMethod  = "POST"
+                conn.doOutput       = true
+                conn.connectTimeout = 15_000
+                conn.readTimeout    = 20_000
+                conn.setRequestProperty("Content-Type",     "application/json")
+                conn.setRequestProperty("X-ZKAuth-Version", "3.0")
                 conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
-                Log.i(TAG, "📨 Callback HTTP $code")
+                val body = try {
+                    (if (code in 200..299) conn.inputStream else conn.errorStream)
+                        ?.bufferedReader()?.readText() ?: ""
+                } catch (_: Exception) { "" }
+                Log.i(TAG, "📨 HTTP $code | ${body.take(100)}")
+                if (code == 403) {
+                    val hint = try {
+                        org.json.JSONObject(body).optString("hint", "")
+                    } catch (_: Exception) { "" }
+                    withContext(Dispatchers.Main) {
+                        showZkError("Passport required.\n${hint.ifEmpty { "This claim needs real NFC passport." }}")
+                    }
+                    return@withContext false
+                }
                 code in 200..299
             } catch (e: Exception) {
                 Log.e(TAG, "❌ HTTP POST: ${e.message}")
@@ -535,6 +579,53 @@ class AuthActivity : AppCompatActivity() {
         "nationality" -> "Nationality verify karne ke liye"
         "is_human"    -> "Passport identity verify karne ke liye"
         else          -> "ZK proof generate karne ke liye"
+    }
+
+    /**
+     * v3.0 — Dialog when claim needs passport but user only has device
+     */
+    private fun showClaimUpgradeDialog(
+        claim:     String,
+        domain:    String,
+        challenge: String,
+        callback:  String,
+        session:   String,
+    ) {
+        val claimLabel = when (claim) {
+            "is_adult"    -> "Age 18+ Verification"
+            "nationality" -> "Nationality Verification"
+            else          -> claim
+        }
+        runOnUiThread {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("⚠️ Passport Required")
+                .setMessage(
+                    "$domain is requesting $claimLabel.\n\n" +
+                    "This requires a real passport scan.\n\n" +
+                    "You can:\n" +
+                    "• Continue with Basic Login (is_human only)\n" +
+                    "• Scan your passport for full verification"
+                )
+                .setPositiveButton("Scan Passport") { _, _ ->
+                    startActivity(Intent(this, PassportActivity::class.java))
+                    finish()
+                }
+                .setNeutralButton("Basic Login") { _, _ ->
+                    Log.i(TAG, "📱 User chose Basic Login → Tier 3")
+                    val i = Intent(this, DeviceTierActivity::class.java).apply {
+                        putExtra("domain",    domain)
+                        putExtra("challenge", challenge)
+                        putExtra("callback",  callback)
+                        putExtra("session",   session)
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    startActivity(i)
+                    finish()
+                }
+                .setNegativeButton("Cancel") { _, _ -> finish() }
+                .setCancelable(false)
+                .show()
+        }
     }
 
     private fun showZkError(msg: String) {

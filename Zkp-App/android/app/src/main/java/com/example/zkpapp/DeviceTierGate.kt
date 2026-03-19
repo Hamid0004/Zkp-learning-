@@ -1,7 +1,6 @@
 package com.example.zkpapp
 
 import android.content.Context
-import com.example.zkpapp.BuildConfig
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -25,23 +24,23 @@ import java.time.Instant
  * Tier 3 — Device + Biometric ZK Proof Gate
  *
  * Collects from Android:
- *   BiometricPrompt     → biometric_hash
- *   KeyStore attestation → attestation_cert_hash
- *   KeyStore creation time → account_created_at_secs
- *   Android ID (SHA-256) → device_id_hash
- *   ECDSA P-256 pubkey   → device_pubkey_hex
+ * BiometricPrompt     → biometric_hash
+ * KeyStore attestation → attestation_cert_hash
+ * KeyStore creation time → account_created_at_secs
+ * Android ID (SHA-256) → device_id_hash
+ * ECDSA P-256 pubkey   → device_pubkey_hex
  *
  * Proves (ZK — nothing revealed):
- *   ✅ is_human        — real biometric present
- *   ✅ is_real_device  — hardware-backed attestation
- *   ✅ is_unique       — domain-scoped nullifier
- *   ✅ account_age_ok  — device registered > 30 days ago
+ * ✅ is_human        — real biometric present
+ * ✅ is_real_device  — hardware-backed attestation
+ * ✅ is_unique       — domain-scoped nullifier
+ * ✅ account_age_ok  — device registered > 30 days ago
  *
  * Always Hidden:
- *   ❌ raw biometric data
- *   ❌ actual device ID
- *   ❌ exact account age
- *   ❌ name, DOB, any PII
+ * ❌ raw biometric data
+ * ❌ actual device ID
+ * ❌ exact account age
+ * ❌ name, DOB, any PII
  *
  * Trust Level: BASIC
  * ═══════════════════════════════════════════════════════════════
@@ -121,8 +120,8 @@ object DeviceTierGate {
      * Main entry point — generate Tier 3 ZK proof.
      *
      * Called by DeviceTierActivity after:
-     *   1. BiometricPrompt succeeds
-     *   2. cryptoObject.signature is available
+     * 1. BiometricPrompt succeeds
+     * 2. cryptoObject.signature is available
      *
      * @param context       Android context (for device ID)
      * @param signature     BiometricPrompt CryptoObject signature (authenticated)
@@ -182,7 +181,7 @@ object DeviceTierGate {
             val input   = JSONObject().apply {
                 put("biometric_hash_hex",        biometricHash)
                 put("attestation_cert_hash_hex", attestHash)
-                put("account_created_at_secs",   createdAtSecs as Long)
+                put("account_created_at_secs",   createdAtSecs)
                 put("device_id_hash_hex",        deviceIdHash)
                 put("verifier_domain",           domain)
                 put("challenge_hex",             challenge)
@@ -292,7 +291,7 @@ object DeviceTierGate {
                 put("hw_binding",       result.optString("hw_binding"))
                 put("merkle_root",      result.optString("merkle_root"))
                 put("compressed_proof", result.optString("compressed_proof"))
-                put("valid_until",      result.optLong("valid_until") as Long)
+                put("valid_until",      result.optLong("valid_until"))
                 put("is_human",         result.optBoolean("is_human"))
                 put("is_real_device",   result.optBoolean("is_real_device"))
                 put("is_unique",        result.optBoolean("is_unique"))
@@ -332,8 +331,18 @@ object DeviceTierGate {
                         ?.bufferedReader()?.readText() ?: ""
                 } catch (_: Exception) { "" }
 
-                if (code in 200..299) Pair(true, "")
-                else Pair(false, "HTTP $code: ${body.take(150)}")
+                if (code in 200..299) {
+                    Pair(true, "")
+                } else if (code == 403) {
+                    // Server rejected — claim needs real passport
+                    val hint = try {
+                        org.json.JSONObject(body).optString("hint",
+                            "Real passport required for this claim")
+                    } catch (_: Exception) { "Real passport required" }
+                    Pair(false, "❌ $hint")
+                } else {
+                    Pair(false, "HTTP $code: ${body.take(150)}")
+                }
             } catch (e: Exception) {
                 Pair(false, "Network: ${e.message?.take(100) ?: "unknown"}")
             }
@@ -382,12 +391,12 @@ object DeviceTierGate {
      * for a new install this is today, which fails the 30-day circuit check.
      *
      * Design decision:
-     *   account_age_ok proves "this device has been set up for 30+ days"
-     *   i.e. device registration time, not key creation time.
+     * account_age_ok proves "this device has been set up for 30+ days"
+     * i.e. device registration time, not key creation time.
      *
-     *   We store first-install timestamp in SharedPreferences on first run.
-     *   KeyStore key creation = today (new install) → use stored install time.
-     *   If install time >= 30 days → passes. Otherwise → honest FAIL.
+     * We store first-install timestamp in SharedPreferences on first run.
+     * KeyStore key creation = today (new install) → use stored install time.
+     * If install time >= 30 days → passes. Otherwise → honest FAIL.
      *
      * For dev/testing: set DEV_SKIP_AGE_CHECK = true below.
      */

@@ -7,7 +7,7 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 const SESSION_TTL_MS   = 10 * 60 * 1000;
-const SCAN_TTL_MS      = 2  * 60 * 1000;
+const SCAN_TTL_MS      = 5  * 60 * 1000;  // 5 min after scan
 const CLEANUP_INTERVAL = 60 * 1000;
 
 // [FIX 1] Claim types synced with app (AuthActivity + IdentityStorage)
@@ -19,6 +19,7 @@ const STATE = {
   PROVING  : 'proving',
   COMPLETED: 'completed',
   EXPIRED  : 'expired',
+  REJECTED : 'rejected',  // insufficient trust level
 };
 
 app.use(cors({
@@ -182,10 +183,11 @@ app.post('/api/scan-notify', (req, res) => {
 
   session.status    = STATE.SCANNING;
   session.scannedAt = Date.now();
+  // Extend session — give phone enough time for proof generation
   session.expiresAt = Date.now() + SCAN_TTL_MS;
   sessions.set(sessionId, session);
 
-  log('info', `Scan detected: ${sessionId}`);
+  log('info', `App opened (deep link): ${sessionId}`);
   res.json({ success: true, status: STATE.SCANNING, claim_type: session.claimType, challenge: session.challenge });
 });
 
@@ -227,7 +229,46 @@ app.post('/zkauth/verify', (req, res) => {
     device_sig,
     version,
     timestamp,
+    input_mode,   // "NFC_PASSPORT" | "SIMULATION" | "DEVICE_BIOMETRIC"
+    trust_level,  // "MAXIMUM" | "BASIC"
+    tier,
   } = req.body;
+
+  // ── Determine final trust level ──────────────────────────
+  // NFC_PASSPORT = MAXIMUM (government verified)
+  // Everything else = BASIC
+  const finalTrust = (input_mode === 'NFC_PASSPORT') ? 'MAXIMUM' : 'BASIC';
+  const isMaximum  = finalTrust === 'MAXIMUM';
+
+  // ── Claim-based trust enforcement ─────────────────────────
+  // Some claims REQUIRE real passport — reject BASIC proof
+  const PASSPORT_REQUIRED_CLAIMS = ['is_adult', 'nationality'];
+  const claimNeedsPassport = PASSPORT_REQUIRED_CLAIMS.includes(claim_type);
+
+  if (claimNeedsPassport && !isMaximum) {
+    log('warn', `Trust mismatch — claim=${claim_type} needs MAXIMUM, got=${finalTrust} (${input_mode})`);
+
+    // Update session to rejected — website poll will detect and show UI
+    if (session_id) {
+      const s = sessions.get(session_id);
+      if (s) {
+        s.status     = STATE.REJECTED;
+        s.claimType  = claim_type;
+        s.required   = 'MAXIMUM';
+        s.provided   = finalTrust;
+        sessions.set(session_id, s);
+      }
+    }
+
+    return res.status(403).json({
+      error      : `Claim '${claim_type}' requires real passport verification`,
+      error_code : 'INSUFFICIENT_TRUST',
+      claim_type,
+      required   : 'MAXIMUM',
+      provided   : finalTrust,
+      hint       : 'Please scan your NFC passport to verify this claim',
+    });
+  }
 
   // ── Basic validation ──────────────────────────────────────
   if (!compressed_proof) {
@@ -259,7 +300,10 @@ app.post('/zkauth/verify', (req, res) => {
       if (session.status === STATE.COMPLETED) {
         return res.status(409).json({ error: 'Session already completed', error_code: 'DUPLICATE_PROOF' });
       }
-      if (session.status === STATE.EXPIRED || Date.now() > session.expiresAt) {
+      // Give 30 extra seconds for proof POST to arrive after scan
+      const graceMs = 30 * 1000;
+      if (session.status === STATE.EXPIRED ||
+          Date.now() > session.expiresAt + graceMs) {
         return res.status(410).json({ error: 'Session expired', error_code: 'SESSION_EXPIRED' });
       }
       // Validate challenge matches session
@@ -278,12 +322,16 @@ app.post('/zkauth/verify', (req, res) => {
     session.proof       = compressed_proof;
     session.nullifier   = nullifier;
     session.claimResult = { type: claim_type, value: true };
+    session.trustLevel  = finalTrust;   // MAXIMUM | BASIC
+    session.inputMode   = input_mode;   // NFC_PASSPORT | SIMULATION | DEVICE_BIOMETRIC
     session.metadata    = {
       version,
       domain,
       hw_binding,
       valid_until,
       timestamp,
+      input_mode,
+      trust_level  : finalTrust,
       generation_time_ms: timestamp ? Date.now() - timestamp : null,
     };
     session.verifiedAt = Date.now();
@@ -296,13 +344,18 @@ app.post('/zkauth/verify', (req, res) => {
   log('info', `✅ ZK proof verified`, `| claim=${claim_type} | domain=${domain} | nullifier=${nullifier.slice(0,16)}…`);
 
   res.json({
-    success    : true,
-    verified   : true,
+    success     : true,
+    verified    : true,
     claim_type,
     domain,
-    nullifier  : nullifier.slice(0, 16) + '…',  // truncated in response
-    verified_at: Date.now(),
-    message    : 'Zero-knowledge proof verified successfully',
+    nullifier   : nullifier.slice(0, 16) + '…',
+    trust_level : finalTrust,   // MAXIMUM | BASIC
+    input_mode  : input_mode,   // what proof was used
+    is_maximum  : isMaximum,    // true only for real NFC passport
+    verified_at : Date.now(),
+    message     : isMaximum
+      ? 'Government-verified identity confirmed'
+      : 'Device-verified identity confirmed',
   });
 });
 
@@ -380,12 +433,21 @@ app.get('/api/poll-status/:session_id', (req, res) => {
     time_remaining: Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000)),
   };
 
+  // Rejected — insufficient trust
+  if (session.status === STATE.REJECTED) {
+    resp.required  = session.required || 'MAXIMUM';
+    resp.provided  = session.provided || 'BASIC';
+  }
+
   if (session.status === STATE.COMPLETED) {
     resp.proof        = session.proof;
     resp.nullifier    = session.nullifier;
     resp.metadata     = session.metadata;
     resp.claim_result = session.claimResult;
     resp.verified_at  = session.verifiedAt;
+    resp.trust_level  = session.trustLevel  || 'BASIC';
+    resp.input_mode   = session.inputMode   || 'UNKNOWN';
+    resp.is_maximum   = session.trustLevel  === 'MAXIMUM';
   }
 
   res.json(resp);
@@ -431,6 +493,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   log('info', `zkAuth Relay v3.0 on port ${PORT}`);
   log('info', `Health: http://localhost:${PORT}/health`);
   log('info', `ZK verify endpoint: POST /zkauth/verify`);
+
+  // ── Self-ping every 4 min — keeps Railway free tier awake ──
+  // Railway sleeps after 5 min inactivity — ping at 4 min prevents it
+  if (process.env.SERVER_URL) {
+    setInterval(() => {
+      const http = require('https');
+      http.get(`${process.env.SERVER_URL}/health`, (res) => {
+        log('info', `Keep-alive ping: ${res.statusCode}`);
+      }).on('error', () => {});  // silent fail ok
+    }, 4 * 60 * 1000);  // every 4 minutes
+  }
 });
 
 process.on('SIGTERM', () => {
