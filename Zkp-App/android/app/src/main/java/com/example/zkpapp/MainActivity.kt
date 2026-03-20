@@ -61,34 +61,26 @@ class MainActivity : AppCompatActivity() {
         setContent {
             MainDashboard(
                 onScanQr = {
-                    if (IdentityStorage.hasIdentity()) {
-                        // 👈 Smooth transition use kiya hai
-                        launchActivitySmoothly(Intent(this, LoginActivity::class.java).apply {
-                            putExtra("MODE", "WEB_LOGIN")
-                        })
-                    } else {
-                        Toast.makeText(this, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
-                    }
+                    // ✅ FIX: Explicitly used this@MainActivity
+                    launchActivitySmoothly(Intent(this@MainActivity, QrLoginActivity::class.java))
                 },
                 onScanPassport = {
-                    // 🎯 FIX APPLIED HERE: PassportActivity -> TierSelectionActivity
-                    launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java)) 
+                    launchActivitySmoothly(Intent(this@MainActivity, TierSelectionActivity::class.java)) 
                 },
                 onOfflineIdentity = {
                     if (IdentityStorage.hasIdentity()) {
-                        launchActivitySmoothly(Intent(this, OfflineMenuActivity::class.java)) // 👈
+                        launchActivitySmoothly(Intent(this@MainActivity, OfflineMenuActivity::class.java))
                     } else {
-                        Toast.makeText(this, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onTestProof = {
-                    launchActivitySmoothly(Intent(this, TestProofActivity::class.java)) // 👈
+                    launchActivitySmoothly(Intent(this@MainActivity, TestProofActivity::class.java))
                 }
             )
         }
     }
 
-    // 👈 Ye function add kiya hai fade in/out animations ke liye
     private fun launchActivitySmoothly(intent: Intent) {
         val options = ActivityOptionsCompat.makeCustomAnimation(
             this,
@@ -205,7 +197,7 @@ private fun DashboardHeader() {
         initialValue  = 0.6f,
         targetValue   = 1f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(2000, easing = EaseInOutSine),
+            animation  = tween(2000, easing = LinearOutSlowInEasing), // ✅ FIX: Standard easing used
             repeatMode = RepeatMode.Reverse,
         ), label = "pulse"
     )
@@ -292,7 +284,7 @@ private fun StatusBar() {
         initialValue  = 0.3f,
         targetValue   = 1f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(1000, easing = EaseInOutSine),
+            animation  = tween(1000, easing = LinearOutSlowInEasing), // ✅ FIX: Standard easing used
             repeatMode = RepeatMode.Reverse,
         ), label = "blink"
     )
@@ -336,7 +328,7 @@ private fun DashboardCard(
     onClick:  () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    
+
     val pressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
@@ -463,7 +455,7 @@ private fun AmbientOrbs() {
         initialValue  = 0.3f,
         targetValue   = 0.6f,
         animationSpec = infiniteRepeatable(
-            animation  = tween(4000, easing = EaseInOutSine),
+            animation  = tween(4000, easing = LinearOutSlowInEasing), // ✅ FIX: Standard easing used
             repeatMode = RepeatMode.Reverse,
         ), label = "orb"
     )
