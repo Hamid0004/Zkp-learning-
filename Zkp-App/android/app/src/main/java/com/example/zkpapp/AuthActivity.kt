@@ -28,7 +28,7 @@ import org.json.JSONObject
 import java.util.Arrays
 
 /**
- * AuthActivity v3.0 — ZKAuth Deep Link + Passkey Model + Smart Trust Routing
+ * AuthActivity v2.0 — ZKAuth Deep Link + Passkey Model
  *
  * ═══════════════════════════════════════════════════════════════
  * v1.0 → v2.0 Upgrades:
@@ -74,14 +74,13 @@ class AuthActivity : AppCompatActivity() {
     private var zkClaim:     String? = null
     private var zkChallenge: String? = null
     private var zkCallback:  String? = null
-    private var zkTier:      Int     = TIER_PASSPORT
+    private var zkTier:      Int     = TIER_PASSPORT  // default = Tier 1
     private var zkSession:   String  = ""  // server session_id
 
     companion object {
         private const val TAG = "AuthActivity"
-        private val VALID_CLAIMS          = setOf("is_adult", "nationality", "is_human")
-        private val VALID_TIERS           = setOf(1, 3)
-        private val PASSPORT_ONLY_CLAIMS  = setOf("is_adult", "nationality")
+        private val VALID_CLAIMS = setOf("is_adult", "nationality", "is_human")
+        private val VALID_TIERS  = setOf(1, 3)   // 2 = coming soon
         const val TIER_PASSPORT  = 1
         const val TIER_DEVICE    = 3
     }
@@ -166,7 +165,10 @@ class AuthActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Deep link flow — never trigger global lock
+
+        // ✅ Deep link intent — never trigger global lock
+        // DeviceTierActivity ya Passport flow se wapas aane pe
+        // lock screen interfere nahi karni chahiye
         if (isDeepLinkIntent(intent)) return
 
         val isFromGlobalLock = intent.getBooleanExtra("from_global_lock", false)
@@ -244,7 +246,7 @@ class AuthActivity : AppCompatActivity() {
         zkClaim     = claim
         zkChallenge = challenge
         zkCallback  = callback
-        zkSession   = session
+        zkSession   = session  // ← server session_id — required for poll completion
 
         Log.i(TAG, "✅ Params valid | domain=$domain | claim=$claim | tier=$zkTier | session=$session")
 
@@ -273,7 +275,7 @@ class AuthActivity : AppCompatActivity() {
                     (IdentityStorage.hasIdentity() && IdentityStorage.hasRealPassport())
 
                 // Claim requires passport? (is_adult, nationality need Tier 1)
-                val claimNeedsPassport = claim in PASSPORT_ONLY_CLAIMS
+                val claimNeedsPassport = claim in setOf("is_adult", "nationality")
 
                 when {
                     // Has real passport → always Tier 1 ✅
@@ -331,14 +333,12 @@ class AuthActivity : AppCompatActivity() {
                 requestBiometricForDiskRestore()
             }
 
-            // PATH C — never registered passport
+            // PATH C — no passport data → instant error + finish
             else -> {
-                Log.w(TAG, "📵 PATH C: no identity → PassportActivity")
-                showZkError("No passport registered.\nPlease scan your passport first.")
-                window.decorView.postDelayed({
-                    startActivity(Intent(this, PassportActivity::class.java))
-                    finish()
-                }, 2000)
+                Log.w(TAG, "📵 PATH C: no passport data — show error")
+                triggerErrorHaptic()
+                showZkError("❌ No passport registered.\nPlease scan your NFC passport first in the app.")
+                window.decorView.postDelayed({ finish() }, 2000)
             }
         }
     }
@@ -652,6 +652,25 @@ class AuthActivity : AppCompatActivity() {
                 .setCancelable(false)
                 .show()
         }
+    }
+
+    // ── Haptic feedback ──────────────────────────────────────────────────────
+    private fun triggerSuccessHaptic() {
+        val v = getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                as? android.os.Vibrator ?: return
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            v.vibrate(android.os.VibrationEffect.createWaveform(
+                longArrayOf(0, 50, 50, 100), -1))
+        } else { @Suppress("DEPRECATION") v.vibrate(longArrayOf(0, 50, 50, 100), -1) }
+    }
+
+    private fun triggerErrorHaptic() {
+        val v = getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                as? android.os.Vibrator ?: return
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            v.vibrate(android.os.VibrationEffect.createWaveform(
+                longArrayOf(0, 100, 50, 100, 50, 100), -1))
+        } else { @Suppress("DEPRECATION") v.vibrate(longArrayOf(0, 100, 50, 100, 50, 100), -1) }
     }
 
     private fun showZkError(msg: String) {

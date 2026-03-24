@@ -131,23 +131,37 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent, options.toBundle())
     }
 
-    // ── Unlock Dialog — shown when no proof exists ────────────────────────────
+    // ── Unlock Dialog — smart handle ─────────────────────────────────────────
+    // First time → full dialog with explanation
+    // Next taps → direct to TierSelection (no dialog)
+    private var unlockDialogShownBefore = false
+
     private fun showUnlockDialog() {
+        if (unlockDialogShownBefore) {
+            // Already knows — skip dialog, go direct
+            launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java))
+            return
+        }
+        unlockDialogShownBefore = true
+
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("🔒 Identity Required")
-            .setMessage("Web Login requires a verified identity.\n\nChoose how to register:")
+            .setMessage(
+                "Web Login requires a verified identity.\n\n" +
+                "🛂 Scan Passport — MAXIMUM trust\n" +
+                "📱 Device Proof  — BASIC trust"
+            )
             .setPositiveButton("🛂 Scan Passport") { _, _ ->
-                // Real NFC passport → MAXIMUM trust
                 launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java))
             }
             .setNeutralButton("📱 Device Proof") { _, _ ->
-                // Fingerprint only → BASIC trust
                 launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java))
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 }
+
 
 // =========================================================
 // MAIN DASHBOARD

@@ -12,7 +12,6 @@ import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -29,11 +28,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
 import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -182,7 +179,7 @@ class QrLoginActivity : AppCompatActivity() {
                 this,
                 CameraSelector.DEFAULT_BACK_CAMERA,
                 preview,
-                analyzer
+                analyzer,
             )
         }, ContextCompat.getMainExecutor(this))
     }
@@ -190,13 +187,14 @@ class QrLoginActivity : AppCompatActivity() {
     @androidx.camera.core.ExperimentalGetImage
     private fun processImageProxy(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image ?: run { imageProxy.close(); return }
-        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        val image = com.google.mlkit.vision.common.InputImage
+            .fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
-        BarcodeScanning.getClient()
+        com.google.mlkit.vision.barcode.BarcodeScanning.getClient()
             .process(image)
             .addOnSuccessListener { barcodes ->
                 for (barcode in barcodes) {
-                    if (barcode.format == Barcode.FORMAT_QR_CODE) {
+                    if (barcode.format == com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE) {
                         handleQrDetected(barcode.rawValue)
                     }
                 }
@@ -214,12 +212,18 @@ class QrLoginActivity : AppCompatActivity() {
         Log.d(TAG, "QR: ${rawValue.take(60)}...")
 
         val deepLink = extractDeepLink(rawValue) ?: run {
-            runOnUiThread { Toast.makeText(this, "Invalid ZKAuth QR code", Toast.LENGTH_SHORT).show() }
+            runOnUiThread {
+                triggerErrorHaptic()
+                Toast.makeText(this, "Invalid ZKAuth QR code", Toast.LENGTH_SHORT).show()
+            }
             return
         }
 
         if (!isValidDeepLink(deepLink)) {
-            runOnUiThread { Toast.makeText(this, "QR expired or invalid.", Toast.LENGTH_SHORT).show() }
+            runOnUiThread {
+                triggerErrorHaptic()
+                Toast.makeText(this, "QR expired or invalid.", Toast.LENGTH_SHORT).show()
+            }
             return
         }
 
@@ -228,6 +232,9 @@ class QrLoginActivity : AppCompatActivity() {
         Log.i(TAG, "✅ Valid QR → AuthActivity")
 
         runOnUiThread {
+            // ── Haptic: success beeps (3 quick pulses) ──────────
+            triggerScanHaptic()
+
             startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)).apply {
                     setPackage(packageName)
@@ -248,21 +255,15 @@ class QrLoginActivity : AppCompatActivity() {
             val decoded   = String(Base64.decode(raw, Base64.DEFAULT), Charsets.UTF_8)
             val json      = JSONObject(decoded)
             val timestamp = json.optLong("timestamp", 0L)
-            
             if (timestamp > 0) {
                 val age = (System.currentTimeMillis() - timestamp) / 1000L
                 if (age > MAX_AGE_SECONDS) {
-                    Log.w(TAG, "QR too old: ${age}s")
-                    return null
+                    Log.w(TAG, "QR too old: ${age}s"); return null
                 }
             }
-            
-            val link = json.optString("deep_link", "")
-            if (link.isEmpty()) null else link
-            
+            json.optString("deep_link", "").ifEmpty { null }
         } catch (e: Exception) {
-            Log.w(TAG, "QR parse failed: ${e.message}")
-            null
+            Log.w(TAG, "QR parse failed: ${e.message}"); null
         }
     }
 
@@ -283,6 +284,33 @@ class QrLoginActivity : AppCompatActivity() {
     }
 
     // ── Helpers ───────────────────────────────────────────────
+
+    // ── Haptic feedback ──────────────────────────────────────────────────────
+    private fun triggerScanHaptic() {
+        val v = getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                as? android.os.Vibrator ?: return
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            // 3 quick pulses — success feel
+            v.vibrate(android.os.VibrationEffect.createWaveform(
+                longArrayOf(0, 60, 40, 60, 40, 80), -1))
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(longArrayOf(0, 60, 40, 60, 40, 80), -1)
+        }
+    }
+
+    private fun triggerErrorHaptic() {
+        val v = getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                as? android.os.Vibrator ?: return
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            // Long buzz — error
+            v.vibrate(android.os.VibrationEffect.createOneShot(
+                300, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            v.vibrate(300)
+        }
+    }
 
     private fun hasCameraPermission() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
