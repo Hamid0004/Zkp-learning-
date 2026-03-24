@@ -60,10 +60,27 @@ class MainActivity : AppCompatActivity() {
 
         setContent {
             // Identity state — drives lock icon + status bar
-            val hasPassport = IdentityStorage.hasRealPassport() &&
-                              IdentityStorage.hasPersistentIdentity(this)
-            val hasDevice   = DeviceTierGate.isDeviceRegistered(this)
-            val isUnlocked  = hasPassport || hasDevice
+            // mutableStateOf + remember ensures recheck on resume
+            var hasPassport by remember {
+                mutableStateOf(
+                    IdentityStorage.hasRealPassport() &&
+                    IdentityStorage.hasPersistentIdentity(this)
+                )
+            }
+            var hasDevice by remember {
+                mutableStateOf(DeviceTierGate.isDeviceRegistered(this))
+            }
+            val isUnlocked = hasPassport || hasDevice
+
+            // Recheck on every recomposition (after returning from TierSelection)
+            LaunchedEffect(Unit) {
+                while (true) {
+                    kotlinx.coroutines.delay(500)
+                    hasPassport = IdentityStorage.hasRealPassport() &&
+                                  IdentityStorage.hasPersistentIdentity(this@MainActivity)
+                    hasDevice   = DeviceTierGate.isDeviceRegistered(this@MainActivity)
+                }
+            }
 
             MainDashboard(
                 isWebLoginUnlocked = isUnlocked,
@@ -176,7 +193,10 @@ fun MainDashboard(
             Spacer(Modifier.height(40.dp))
 
             // ── Status bar ───────────────────────────────────
-            StatusBar()
+            StatusBar(
+                isUnlocked      = isWebLoginUnlocked,
+                hasRealPassport = hasRealPassport,
+            )
 
             Spacer(Modifier.height(36.dp))
 
@@ -357,11 +377,16 @@ private fun StatusBar(
             Text(text = "SYSTEM ONLINE", fontSize = 10.sp, color = NeonGreen, letterSpacing = 1.sp)
         }
 
-        // Security level
+        // Identity status — dynamic
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(text = "ZK-PROOF", fontSize = 10.sp, color = CyberCyan, letterSpacing = 1.sp)
+            val (statusText, statusColor) = when {
+                hasRealPassport -> Pair("🛂 PASSPORT", Color(0xFF00FF88))
+                isUnlocked      -> Pair("📱 DEVICE", Color(0xFFFFD700))
+                else            -> Pair("🔒 LOCKED", Color(0xFFFF3366))
+            }
+            Text(text = statusText, fontSize = 10.sp, color = statusColor, letterSpacing = 1.sp)
             Canvas(modifier = Modifier.size(8.dp)) {
-                drawCircle(color = CyberCyan.copy(alpha = blink))
+                drawCircle(color = statusColor.copy(alpha = blink))
             }
         }
     }
