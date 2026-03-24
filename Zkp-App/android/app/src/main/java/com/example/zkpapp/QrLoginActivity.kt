@@ -285,31 +285,51 @@ class QrLoginActivity : AppCompatActivity() {
 
     // ── Helpers ───────────────────────────────────────────────
 
-    // ── Haptic feedback ──────────────────────────────────────────────────────
+    // ── Audio + Haptic feedback ──────────────────────────────────────────────
     private fun triggerScanHaptic() {
+        // 1. Vibration — 3 quick pulses
         val v = getSystemService(android.content.Context.VIBRATOR_SERVICE)
-                as? android.os.Vibrator ?: return
+                as? android.os.Vibrator
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            // 3 quick pulses — success feel
-            v.vibrate(android.os.VibrationEffect.createWaveform(
-                longArrayOf(0, 60, 40, 60, 40, 80), -1))
+            v?.vibrate(android.os.VibrationEffect.createWaveform(
+                longArrayOf(0, 50, 30, 50, 30, 80), -1))
         } else {
             @Suppress("DEPRECATION")
-            v.vibrate(longArrayOf(0, 60, 40, 60, 40, 80), -1)
+            v?.vibrate(longArrayOf(0, 50, 30, 50, 30, 80), -1)
         }
+
+        // 2. Audio beep — system scan sound
+        try {
+            val toneGen = android.media.ToneGenerator(
+                android.media.AudioManager.STREAM_NOTIFICATION, 80)
+            toneGen.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 120)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                toneGen.release()
+            }, 200)
+        } catch (_: Exception) { /* silent fail */ }
     }
 
     private fun triggerErrorHaptic() {
+        // 1. Vibration — long buzz
         val v = getSystemService(android.content.Context.VIBRATOR_SERVICE)
-                as? android.os.Vibrator ?: return
+                as? android.os.Vibrator
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            // Long buzz — error
-            v.vibrate(android.os.VibrationEffect.createOneShot(
-                300, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            v?.vibrate(android.os.VibrationEffect.createOneShot(
+                400, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
         } else {
             @Suppress("DEPRECATION")
-            v.vibrate(300)
+            v?.vibrate(400)
         }
+
+        // 2. Error tone
+        try {
+            val toneGen = android.media.ToneGenerator(
+                android.media.AudioManager.STREAM_NOTIFICATION, 80)
+            toneGen.startTone(android.media.ToneGenerator.TONE_PROP_NACK, 300)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                toneGen.release()
+            }, 400)
+        } catch (_: Exception) { /* silent fail */ }
     }
 
     private fun hasCameraPermission() =

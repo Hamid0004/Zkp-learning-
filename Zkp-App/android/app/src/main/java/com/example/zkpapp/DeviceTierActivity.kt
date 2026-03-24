@@ -96,25 +96,33 @@ class DeviceTierActivity : AppCompatActivity() {
 
     // ── Background Init ───────────────────────────────────────────────────────
     private fun initInBackground() {
-        updateStatus("⚡ INITIALIZING", colorGold, "CIRCUIT LOADING · PLEASE WAIT")
+        updateStatus("⚡ INITIALIZING", colorGold, "SETTING UP SECURE ENCLAVE")
         btnScan.isEnabled = false
         btnScan.alpha     = 0.4f
 
         lifecycleScope.launch {
             try {
+                // Step 1: KeyStore setup
+                runOnUiThread { updateStatus("🔑 STEP 1/3", colorGold, "GENERATING DEVICE KEY") }
                 DeviceTierGate.ensureDeviceKeyExists()
+
+                // Step 2: Circuit warmup (slow on first install — Plonky2 build)
+                runOnUiThread { updateStatus("⚙️ STEP 2/3", colorGold, "BUILDING ZK CIRCUIT · FIRST TIME ONLY") }
                 DeviceTierGate.warmup()
+
+                // Step 3: Ready
+                runOnUiThread { updateStatus("✅ STEP 3/3", colorGold, "CIRCUIT READY") }
+                kotlinx.coroutines.delay(300)
+
                 isReady = true
                 runOnUiThread {
                     btnScan.isEnabled = true
                     btnScan.alpha     = 1f
 
                     if (zkCallback.isNotEmpty()) {
-                        // Deep link mode — auto trigger biometric, no button needed
                         updateStatus("👆 AUTHENTICATING", colorCyan, "PLACE FINGER ON SENSOR")
                         onScanTapped()
                     } else {
-                        // Registration mode — show button
                         updateStatus("✅ READY", colorGreen, "TAP BUTTON BELOW TO SCAN BIOMETRIC")
                         btnScan.animate().scaleX(1.04f).scaleY(1.04f).setDuration(150).withEndAction {
                             btnScan.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
@@ -125,7 +133,11 @@ class DeviceTierActivity : AppCompatActivity() {
                 android.util.Log.e(TAG, "Init failed: ${e.message}", e)
                 runOnUiThread {
                     updateStatus("❌ INIT FAILED", colorRed,
-                        e.message?.take(40)?.uppercase() ?: "UNKNOWN ERROR")
+                        e.message?.take(60)?.uppercase() ?: "UNKNOWN ERROR · RESTART APP")
+                    // Allow retry — enable btn
+                    btnScan.isEnabled = true
+                    btnScan.alpha     = 0.7f
+                    btnScan.text      = "RETRY"
                 }
             }
         }
