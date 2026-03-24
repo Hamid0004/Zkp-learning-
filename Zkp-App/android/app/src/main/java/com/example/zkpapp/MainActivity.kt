@@ -59,15 +59,31 @@ class MainActivity : AppCompatActivity() {
         )
 
         setContent {
+            // Identity state — drives lock icon + status bar
+            val hasPassport = IdentityStorage.hasRealPassport() &&
+                              IdentityStorage.hasPersistentIdentity(this)
+            val hasDevice   = DeviceTierGate.isDeviceRegistered(this)
+            val isUnlocked  = hasPassport || hasDevice
+
             MainDashboard(
+                isWebLoginUnlocked = isUnlocked,
+                hasRealPassport    = hasPassport,
                 onScanQr = {
-                    if (IdentityStorage.hasIdentity()) {
-                        // 👈 Smooth transition use kiya hai
-                        launchActivitySmoothly(Intent(this, LoginActivity::class.java).apply {
-                            putExtra("MODE", "WEB_LOGIN")
-                        })
-                    } else {
-                        Toast.makeText(this, "⚠️ Please Scan Passport First!", Toast.LENGTH_SHORT).show()
+                    when {
+                        // PATH 1 — Real NFC passport ✅
+                        hasPassport -> {
+                            launchActivitySmoothly(
+                                Intent(this, QrLoginActivity::class.java)
+                            )
+                        }
+                        // PATH 2 — Tier 3 registered ✅
+                        hasDevice -> {
+                            launchActivitySmoothly(
+                                Intent(this, QrLoginActivity::class.java)
+                            )
+                        }
+                        // LOCKED ❌
+                        else -> showUnlockDialog()
                     }
                 },
                 onScanPassport = {
@@ -97,6 +113,23 @@ class MainActivity : AppCompatActivity() {
         )
         startActivity(intent, options.toBundle())
     }
+
+    // ── Unlock Dialog — shown when no proof exists ────────────────────────────
+    private fun showUnlockDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🔒 Identity Required")
+            .setMessage("Web Login requires a verified identity.\n\nChoose how to register:")
+            .setPositiveButton("🛂 Scan Passport") { _, _ ->
+                // Real NFC passport → MAXIMUM trust
+                launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java))
+            }
+            .setNeutralButton("📱 Device Proof") { _, _ ->
+                // Fingerprint only → BASIC trust
+                launchActivitySmoothly(Intent(this, TierSelectionActivity::class.java))
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 }
 
 // =========================================================
@@ -104,14 +137,16 @@ class MainActivity : AppCompatActivity() {
 // =========================================================
 @Composable
 fun MainDashboard(
-    onScanQr: () -> Unit,
-    onScanPassport: () -> Unit,
-    onOfflineIdentity: () -> Unit,
-    onTestProof: () -> Unit,
+    isWebLoginUnlocked: Boolean = false,
+    hasRealPassport:    Boolean = false,
+    onScanQr:           () -> Unit,
+    onScanPassport:     () -> Unit,
+    onOfflineIdentity:  () -> Unit,
+    onTestProof:        () -> Unit,
 ) {
     val stars = remember { List(160) {
         Star(Random.nextFloat(), Random.nextFloat(),
-            Random.nextFloat() * 1.6f + 0.3f, Random.nextFloat() * 0.8f + 0.2f)
+        Random.nextFloat() * 1.6f + 0.3f, Random.nextFloat() * 0.8f + 0.2f)
     }}
 
     Box(
@@ -147,10 +182,15 @@ fun MainDashboard(
 
             // ── Action cards ─────────────────────────────────
             DashboardCard(
-                icon        = "⬡",
+                icon        = if (isWebLoginUnlocked) "⬡" else "🔒",
                 title       = "SCAN QR",
-                subtitle    = "Web Login Gateway",
-                gradient    = listOf(NeonBlue, CyberCyan),
+                subtitle    = if (isWebLoginUnlocked)
+                                  if (hasRealPassport) "Passport · MAXIMUM Trust"
+                                  else "Device · BASIC Trust"
+                              else "Register identity to unlock",
+                gradient    = if (isWebLoginUnlocked)
+                                  listOf(NeonBlue, CyberCyan)
+                              else listOf(Color(0xFF374151), Color(0xFF4B5563)),
                 onClick     = onScanQr,
             )
             Spacer(Modifier.height(14.dp))
@@ -286,7 +326,10 @@ private fun DashboardHeader() {
 // STATUS BAR
 // =========================================================
 @Composable
-private fun StatusBar() {
+private fun StatusBar(
+    isUnlocked:     Boolean = false,
+    hasRealPassport:Boolean = false,
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "status")
     val blink by infiniteTransition.animateFloat(
         initialValue  = 0.3f,
@@ -336,7 +379,7 @@ private fun DashboardCard(
     onClick:  () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    
+
     val pressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
