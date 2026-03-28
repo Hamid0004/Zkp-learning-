@@ -157,8 +157,12 @@ class DeviceTierActivity : AppCompatActivity() {
 
         val cryptoObj = DeviceTierGate.buildCryptoObject()
         if (cryptoObj == null) {
-            updateStatus("❌ KEY ERROR", colorRed, "DEVICE KEY MISSING — PLEASE RETRY")
-            initInBackground()
+            // Key was invalidated (new biometric in PassportActivity)
+            // Reset isProving so next tap works
+            isProving = false
+            updateStatus("🔄 KEY REFRESHED", colorGold, "TAP SCAN BIOMETRIC AGAIN")
+            btnScan.isEnabled = true
+            btnScan.alpha     = 1f
             return
         }
 

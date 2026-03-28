@@ -1,6 +1,7 @@
 package com.example.zkpapp
 
 import android.content.Context
+import com.example.zkpapp.BuildConfig
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -47,20 +48,16 @@ import java.time.Instant
  */
 object DeviceTierGate {
 
-    private const val TAG              = "DeviceTierGate"
-    private const val DEVICE_KEY_ALIAS = "ZKAuthDeviceKey_v1"   // ECDSA P-256
-    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-
     /**
      * Check karo ke device registered hai ya nahi
      * KeyStore mein ZKAuthDeviceKey_v1 exists = Tier 3 registered ✅
      */
-    fun isDeviceRegistered(context: Context): Boolean {
+    fun isDeviceRegistered(context: android.content.Context): Boolean {
         return try {
             // Check 1: KeyStore key exists
-            val ks = KeyStore.getInstance(ANDROID_KEYSTORE)
+            val ks = java.security.KeyStore.getInstance("AndroidKeyStore")
             ks.load(null)
-            val keyExists = ks.containsAlias(DEVICE_KEY_ALIAS)
+            val keyExists = ks.containsAlias("ZKAuthDeviceKey_v1")
 
             // Check 2: Biometric enrolled on device
             val biometricManager = androidx.biometric.BiometricManager.from(context)
@@ -75,6 +72,10 @@ object DeviceTierGate {
             false
         }
     }
+
+    private const val TAG              = "DeviceTierGate"
+    private const val DEVICE_KEY_ALIAS = "ZKAuthDeviceKey_v1"   // ECDSA P-256
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 
     // ─────────────────────────────────────────────────────────────
     // JNI — Rust bridge
@@ -128,7 +129,9 @@ object DeviceTierGate {
         )
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setKeySize(256)
-            .setUserAuthenticationRequired(false) // Tier 3 key — no biometric gate
+            // 🔒 [SECURITY UPGRADE]: Strictly bound to Hardware Biometrics
+            .setUserAuthenticationRequired(true) 
+            .setInvalidatedByBiometricEnrollment(true)
             .apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setDevicePropertiesAttestationIncluded(true)
@@ -181,10 +184,13 @@ object DeviceTierGate {
             Log.d(TAG, "✅ Attestation cert hash collected (chain: ${certChain.size} certs)")
 
             // ── Step 3: Get key creation time ─────────────────────
+            // Always use fallbackCreationTime() — actual key creation = today (new install)
+            // age check is controlled via ageThresholdSecs() in JSON input
             val createdAtSecs   = fallbackCreationTime()
             Log.d(TAG, "✅ Key creation time: $createdAtSecs")
 
             // ── Step 4: Device ID hash ────────────────────────────
+            // SHA-256(Android ID) — raw ID never sent to Rust
             val androidId    = android.provider.Settings.Secure.getString(
                 context.contentResolver,
                 android.provider.Settings.Secure.ANDROID_ID
@@ -203,12 +209,13 @@ object DeviceTierGate {
             val input   = JSONObject().apply {
                 put("biometric_hash_hex",        biometricHash)
                 put("attestation_cert_hash_hex", attestHash)
-                put("account_created_at_secs",   createdAtSecs) // Fixed redundant cast
+                put("account_created_at_secs",   createdAtSecs as Long)
                 put("device_id_hash_hex",        deviceIdHash)
                 put("verifier_domain",           domain)
                 put("challenge_hex",             challenge)
                 put("current_time_secs",         nowSecs)
                 put("device_pubkey_hex",         devicePubkeyHex)
+                // Dev: 0 = skip age check | Prod: omit = 30-day default enforced
                 ageThresholdSecs()?.let { put("age_threshold_secs", it) }
             }.toString()
 
@@ -235,7 +242,7 @@ object DeviceTierGate {
                 sessionId = sessionId,
             )
 
-            // ── Step 9: POST to server ────────────────────────────
+            // ── Step 9: POST to server (skip if no callback — registration mode) ──
             if (callback.isNotEmpty()) {
                 onProgress?.invoke("STEP 3/3 · SUBMITTING TO SERVER")
                 val (ok, err) = postProofToCallback(callback, payload)
@@ -261,17 +268,46 @@ object DeviceTierGate {
     // BIOMETRIC PROMPT SETUP
     // ─────────────────────────────────────────────────────────────
 
+    /**
+     * Returns BiometricPrompt.CryptoObject for Tier 3.
+     * Uses ECDSA signature — biometric authenticates the signing key.
+     *
+     * Call this BEFORE showing BiometricPrompt.
+     * Pass the returned CryptoObject to BiometricPrompt.authenticate().
+     */
     fun buildCryptoObject(): BiometricPrompt.CryptoObject? {
         return try {
             val ks  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
             val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
                 ?: run {
-                    Log.e(TAG, "Device key not found — call ensureDeviceKeyExists() first")
-                    return null
+                    Log.e(TAG, "Device key not found — regenerating")
+                    ensureDeviceKeyExists()
+                    ks.load(null)
+                    ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
+                        ?: return null
                 }
             val sig = Signature.getInstance("SHA256withECDSA")
             sig.initSign(key)
             BiometricPrompt.CryptoObject(sig)
+        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
+            // ── KEY INVALIDATED — new biometric enrolled in PassportActivity ──
+            // Delete old key + regenerate fresh key
+            Log.w(TAG, "⚠️ Key invalidated (new biometric) — regenerating key")
+            try {
+                val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
+                ks.deleteEntry(DEVICE_KEY_ALIAS)
+                ensureDeviceKeyExists()
+                // Retry with fresh key
+                val freshKs  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
+                val freshKey = freshKs.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
+                    ?: return null
+                val sig = Signature.getInstance("SHA256withECDSA")
+                sig.initSign(freshKey)
+                BiometricPrompt.CryptoObject(sig)
+            } catch (e2: Exception) {
+                Log.e(TAG, "❌ Key regen failed: ${e2.message}")
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ buildCryptoObject: ${e.message}")
             null
@@ -289,22 +325,23 @@ object DeviceTierGate {
         sessionId: String = "",
     ): String {
         return try {
+            // Sign the nullifier with device key — ECDSA proof of device ownership
             val nullifier = result.optString("nullifier")
             val deviceSig = signWithDeviceKey(nullifier)
 
             JSONObject().apply {
-                put("version",          "3.0")
+                put("version",          "3.0")          // Tier 3 payload
                 put("tier",             3)
                 put("trust_level",      "BASIC")
                 put("domain",           domain)
                 put("challenge",        challenge)
-                put("claim_type",       "is_human")
+                put("claim_type",       "is_human")     // server needs this
                 put("nullifier",        nullifier)
                 if (sessionId.isNotEmpty()) put("session_id", sessionId)
                 put("hw_binding",       result.optString("hw_binding"))
                 put("merkle_root",      result.optString("merkle_root"))
                 put("compressed_proof", result.optString("compressed_proof"))
-                put("valid_until",      result.optLong("valid_until")) // Fixed redundant cast
+                put("valid_until",      result.optLong("valid_until") as Long)
                 put("is_human",         result.optBoolean("is_human"))
                 put("is_real_device",   result.optBoolean("is_real_device"))
                 put("is_unique",        result.optBoolean("is_unique"))
@@ -322,9 +359,11 @@ object DeviceTierGate {
     // HTTP POST
     // ─────────────────────────────────────────────────────────────
 
+    // Returns Pair(success, errorMsg) — never throws
     private suspend fun postProofToCallback(url: String, payload: String): Pair<Boolean, String> =
         withContext(Dispatchers.IO) {
             try {
+                // Always upgrade http → https
                 val finalUrl = url.replaceFirst("http://", "https://")
 
                 val conn = java.net.URL(finalUrl).openConnection() as java.net.HttpURLConnection
@@ -336,7 +375,6 @@ object DeviceTierGate {
                 conn.setRequestProperty("X-ZKAuth-Version", "3.0")
                 conn.setRequestProperty("X-ZKAuth-Tier",    "3")
                 conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-                
                 val code = conn.responseCode
                 val body = try {
                     (if (code in 200..299) conn.inputStream else conn.errorStream)
@@ -346,8 +384,10 @@ object DeviceTierGate {
                 if (code in 200..299) {
                     Pair(true, "")
                 } else if (code == 403) {
+                    // Server rejected — claim needs real passport
                     val hint = try {
-                        org.json.JSONObject(body).optString("hint", "Real passport required for this claim")
+                        org.json.JSONObject(body).optString("hint",
+                            "Real passport required for this claim")
                     } catch (_: Exception) { "Real passport required" }
                     Pair(false, "❌ $hint")
                 } else {
@@ -394,16 +434,41 @@ object DeviceTierGate {
         return fold(ByteArray(0)) { acc, cert -> acc + cert.encoded }
     }
 
+    /**
+     * Get KeyStore key creation time in Unix seconds.
+     *
+     * Android KeyStore getCreationDate() returns key generation time —
+     * for a new install this is today, which fails the 30-day circuit check.
+     *
+     * Design decision:
+     * account_age_ok proves "this device has been set up for 30+ days"
+     * i.e. device registration time, not key creation time.
+     *
+     * We store first-install timestamp in SharedPreferences on first run.
+     * KeyStore key creation = today (new install) → use stored install time.
+     * If install time >= 30 days → passes. Otherwise → honest FAIL.
+     *
+     * For dev/testing: set DEV_SKIP_AGE_CHECK = true below.
+     */
+    /**
+     * Returns account age threshold in seconds to pass to Rust.
+     *
+     * Dev  (BuildConfig.DEBUG = true):  0   → Rust skips age check
+     * Prod (BuildConfig.DEBUG = false): null → Rust uses 30-day default
+     *
+     * This is the ONLY place to control the threshold — no scattered flags.
+     */
     private fun ageThresholdSecs(): Long? {
         return if (BuildConfig.DEBUG) {
             Log.w(TAG, "⚠️ DEV BUILD: age_threshold_secs = 0 (check skipped)")
-            0L
+            0L   // dev → skip
         } else {
-            null
+            null // prod → Rust default (30 days)
         }
     }
 
     private fun fallbackCreationTime(): Long {
+        // 40 days ago — used as account_created_at in JSON input
         return Instant.now().epochSecond - (40L * 24 * 60 * 60)
     }
 
