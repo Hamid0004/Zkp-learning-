@@ -116,7 +116,23 @@ object DeviceTierGate {
      */
     fun ensureDeviceKeyExists() {
         val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
-        if (ks.containsAlias(DEVICE_KEY_ALIAS)) return
+        if (ks.containsAlias(DEVICE_KEY_ALIAS)) {
+            // Verify existing key has correct spec (userAuth=true)
+            // If old key was generated with userAuth=false → delete and recreate
+            try {
+                val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
+                if (key != null) {
+                    val sig = java.security.Signature.getInstance("SHA256withECDSA")
+                    sig.initSign(key) // If this succeeds without auth = old bad key
+                    // Old key (userAuth=false) — delete and regenerate
+                    Log.w(TAG, "⚠️ Old key detected (no auth required) — regenerating")
+                    ks.deleteEntry(DEVICE_KEY_ALIAS)
+                }
+            } catch (e: Exception) {
+                // Key requires auth (correct) or is invalid — proceed to recreate
+                if (ks.containsAlias(DEVICE_KEY_ALIAS)) return
+            }
+        }
 
         Log.d(TAG, "🔑 Generating Tier 3 device key...")
         val kpg = KeyPairGenerator.getInstance(
@@ -129,9 +145,8 @@ object DeviceTierGate {
         )
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setKeySize(256)
-            // 🔒 [SECURITY UPGRADE]: Strictly bound to Hardware Biometrics
-            .setUserAuthenticationRequired(true) 
-            .setInvalidatedByBiometricEnrollment(true)
+            .setUserAuthenticationRequired(true)      // ← MUST be true for BiometricPrompt
+            .setInvalidatedByBiometricEnrollment(false) // ← Don't invalidate on new biometric
             .apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setDevicePropertiesAttestationIncluded(true)
@@ -435,28 +450,10 @@ object DeviceTierGate {
     }
 
     /**
-     * Get KeyStore key creation time in Unix seconds.
-     *
-     * Android KeyStore getCreationDate() returns key generation time —
-     * for a new install this is today, which fails the 30-day circuit check.
-     *
-     * Design decision:
-     * account_age_ok proves "this device has been set up for 30+ days"
-     * i.e. device registration time, not key creation time.
-     *
-     * We store first-install timestamp in SharedPreferences on first run.
-     * KeyStore key creation = today (new install) → use stored install time.
-     * If install time >= 30 days → passes. Otherwise → honest FAIL.
-     *
-     * For dev/testing: set DEV_SKIP_AGE_CHECK = true below.
-     */
-    /**
      * Returns account age threshold in seconds to pass to Rust.
      *
      * Dev  (BuildConfig.DEBUG = true):  0   → Rust skips age check
      * Prod (BuildConfig.DEBUG = false): null → Rust uses 30-day default
-     *
-     * This is the ONLY place to control the threshold — no scattered flags.
      */
     private fun ageThresholdSecs(): Long? {
         return if (BuildConfig.DEBUG) {
