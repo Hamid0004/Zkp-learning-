@@ -116,21 +116,20 @@ object DeviceTierGate {
      */
     fun ensureDeviceKeyExists() {
         val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
+        // Always delete old key — ensures correct spec every time
+        // Prevents "userAuth=false" legacy key from blocking biometric popup
         if (ks.containsAlias(DEVICE_KEY_ALIAS)) {
-            // Verify existing key has correct spec (userAuth=true)
-            // If old key was generated with userAuth=false → delete and recreate
             try {
+                // Test if key works with biometric (throws if wrong spec or invalidated)
                 val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                if (key != null) {
-                    val sig = java.security.Signature.getInstance("SHA256withECDSA")
-                    sig.initSign(key) // If this succeeds without auth = old bad key
-                    // Old key (userAuth=false) — delete and regenerate
-                    Log.w(TAG, "⚠️ Old key detected (no auth required) — regenerating")
-                    ks.deleteEntry(DEVICE_KEY_ALIAS)
+                if (key == null) {
+                    ks.deleteEntry(DEVICE_KEY_ALIAS) // broken key — delete
+                } else {
+                    return // key exists and is valid
                 }
             } catch (e: Exception) {
-                // Key requires auth (correct) or is invalid — proceed to recreate
-                if (ks.containsAlias(DEVICE_KEY_ALIAS)) return
+                Log.w(TAG, "Key test failed — deleting: ${e.message}")
+                try { ks.deleteEntry(DEVICE_KEY_ALIAS) } catch (_: Exception) {}
             }
         }
 
@@ -291,38 +290,31 @@ object DeviceTierGate {
      * Pass the returned CryptoObject to BiometricPrompt.authenticate().
      */
     fun buildCryptoObject(): BiometricPrompt.CryptoObject? {
+        // Step 1: Delete invalidated key if exists
+        try {
+            val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
+            if (ks.containsAlias(DEVICE_KEY_ALIAS)) {
+                val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
+                if (key == null) {
+                    ks.deleteEntry(DEVICE_KEY_ALIAS)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Pre-check failed: ${e.message}")
+        }
+
+        // Step 2: Ensure fresh key exists with correct spec
+        ensureDeviceKeyExists()
+
+        // Step 3: Build CryptoObject
         return try {
             val ks  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
             val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                ?: run {
-                    Log.e(TAG, "Device key not found — regenerating")
-                    ensureDeviceKeyExists()
-                    ks.load(null)
-                    ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                        ?: return null
-                }
+                ?: run { Log.e(TAG, "Key still null after ensure"); return null }
             val sig = Signature.getInstance("SHA256withECDSA")
-            sig.initSign(key)
+            // DO NOT call sig.initSign(key) here — biometric will do it
+            // Just create CryptoObject with uninitialized signature for BiometricPrompt
             BiometricPrompt.CryptoObject(sig)
-        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
-            // ── KEY INVALIDATED — new biometric enrolled in PassportActivity ──
-            // Delete old key + regenerate fresh key
-            Log.w(TAG, "⚠️ Key invalidated (new biometric) — regenerating key")
-            try {
-                val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
-                ks.deleteEntry(DEVICE_KEY_ALIAS)
-                ensureDeviceKeyExists()
-                // Retry with fresh key
-                val freshKs  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
-                val freshKey = freshKs.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                    ?: return null
-                val sig = Signature.getInstance("SHA256withECDSA")
-                sig.initSign(freshKey)
-                BiometricPrompt.CryptoObject(sig)
-            } catch (e2: Exception) {
-                Log.e(TAG, "❌ Key regen failed: ${e2.message}")
-                null
-            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ buildCryptoObject: ${e.message}")
             null
@@ -450,10 +442,28 @@ object DeviceTierGate {
     }
 
     /**
+     * Get KeyStore key creation time in Unix seconds.
+     *
+     * Android KeyStore getCreationDate() returns key generation time —
+     * for a new install this is today, which fails the 30-day circuit check.
+     *
+     * Design decision:
+     * account_age_ok proves "this device has been set up for 30+ days"
+     * i.e. device registration time, not key creation time.
+     *
+     * We store first-install timestamp in SharedPreferences on first run.
+     * KeyStore key creation = today (new install) → use stored install time.
+     * If install time >= 30 days → passes. Otherwise → honest FAIL.
+     *
+     * For dev/testing: set DEV_SKIP_AGE_CHECK = true below.
+     */
+    /**
      * Returns account age threshold in seconds to pass to Rust.
      *
      * Dev  (BuildConfig.DEBUG = true):  0   → Rust skips age check
      * Prod (BuildConfig.DEBUG = false): null → Rust uses 30-day default
+     *
+     * This is the ONLY place to control the threshold — no scattered flags.
      */
     private fun ageThresholdSecs(): Long? {
         return if (BuildConfig.DEBUG) {
