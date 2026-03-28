@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
 import android.view.*
 import android.view.animation.*
 import android.widget.*
@@ -16,7 +17,6 @@ import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import android.util.Log
 
 /**
  * DeviceTierActivity.kt v1.0
@@ -171,12 +171,9 @@ class DeviceTierActivity : AppCompatActivity() {
         val prompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    // Signature may be null if key had no initSign — still proceed
-                    val sig = result.cryptoObject?.signature
-                    if (sig == null) {
-                        // Key needs initSign — call generateProof without signature
-                        Log.w(TAG, "⚠️ Signature null — proceeding without CryptoObject")
-                        onBiometricSuccessNoSig()
+                    val sig = result.cryptoObject?.signature ?: run {
+                        updateStatus("❌ SIGNATURE ERROR", colorRed, "CRYPTO OBJECT NULL")
+                        resetScanButton()
                         return
                     }
                     onBiometricSuccess(sig)

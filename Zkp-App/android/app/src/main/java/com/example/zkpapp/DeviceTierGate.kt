@@ -290,33 +290,35 @@ object DeviceTierGate {
      * Pass the returned CryptoObject to BiometricPrompt.authenticate().
      */
     fun buildCryptoObject(): BiometricPrompt.CryptoObject? {
-        // Step 1: Delete invalidated key if exists
+        // Attempt 1: Try with existing key
+        val result = tryBuildCryptoObject()
+        if (result != null) return result
+
+        // Attempt 2: Key was invalid — delete + regenerate + retry once
+        Log.w(TAG, "⚠️ Key invalid — deleting and regenerating")
         try {
             val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
-            if (ks.containsAlias(DEVICE_KEY_ALIAS)) {
-                val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                if (key == null) {
-                    ks.deleteEntry(DEVICE_KEY_ALIAS)
-                }
-            }
+            ks.deleteEntry(DEVICE_KEY_ALIAS)
         } catch (e: Exception) {
-            Log.w(TAG, "Pre-check failed: ${e.message}")
+            Log.e(TAG, "Delete failed: ${e.message}")
         }
-
-        // Step 2: Ensure fresh key exists with correct spec
         ensureDeviceKeyExists()
+        return tryBuildCryptoObject()
+    }
 
-        // Step 3: Build CryptoObject
+    private fun tryBuildCryptoObject(): BiometricPrompt.CryptoObject? {
         return try {
             val ks  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
             val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                ?: run { Log.e(TAG, "Key still null after ensure"); return null }
+                ?: return null
             val sig = Signature.getInstance("SHA256withECDSA")
-            // DO NOT call sig.initSign(key) here — biometric will do it
-            // Just create CryptoObject with uninitialized signature for BiometricPrompt
+            sig.initSign(key)  // ← REQUIRED for CryptoObject — throws if key invalid
             BiometricPrompt.CryptoObject(sig)
+        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
+            Log.w(TAG, "Key permanently invalidated — will regenerate")
+            null  // triggers Attempt 2 in buildCryptoObject
         } catch (e: Exception) {
-            Log.e(TAG, "❌ buildCryptoObject: ${e.message}")
+            Log.e(TAG, "❌ tryBuildCryptoObject: ${e.message}")
             null
         }
     }
