@@ -289,12 +289,17 @@ object DeviceTierGate {
     fun buildCryptoObject(): BiometricPrompt.CryptoObject {
         try {
             return tryBuildCryptoObject()
-        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
-            Log.w(TAG, "Key permanently invalidated — deleting and regenerating")
+        } catch (e: Exception) {
+            // ✅ FIX: Catch ANY exception (including InvalidKeyException)
+            // Agar purani key corrupt hai ya parameters galat hain, usay delete kar ke nayi banayein
+            Log.w(TAG, "Key failed (${e.javaClass.simpleName}) — deleting and regenerating")
+            
             val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
-            ks.deleteEntry(DEVICE_KEY_ALIAS)
-            ensureDeviceKeyExists()
-            return tryBuildCryptoObject()
+            ks.deleteEntry(DEVICE_KEY_ALIAS) // 🗑️ Purani kharab key delete!
+            
+            ensureDeviceKeyExists()          // 🔑 Nayi fresh key banayein!
+            
+            return tryBuildCryptoObject()    // 🔄 Ek aakhri baar dobara try karein
         }
     }
 
