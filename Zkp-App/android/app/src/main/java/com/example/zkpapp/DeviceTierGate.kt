@@ -284,43 +284,29 @@ object DeviceTierGate {
 
     /**
      * Returns BiometricPrompt.CryptoObject for Tier 3.
-     * Uses ECDSA signature — biometric authenticates the signing key.
-     *
-     * Call this BEFORE showing BiometricPrompt.
-     * Pass the returned CryptoObject to BiometricPrompt.authenticate().
      */
-    fun buildCryptoObject(): BiometricPrompt.CryptoObject? {
-        // Attempt 1: Try with existing key
-        val result = tryBuildCryptoObject()
-        if (result != null) return result
-
-        // Attempt 2: Key was invalid — delete + regenerate + retry once
-        Log.w(TAG, "⚠️ Key invalid — deleting and regenerating")
+    @Throws(Exception::class)
+    fun buildCryptoObject(): BiometricPrompt.CryptoObject {
         try {
+            return tryBuildCryptoObject()
+        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
+            Log.w(TAG, "Key permanently invalidated — deleting and regenerating")
             val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
             ks.deleteEntry(DEVICE_KEY_ALIAS)
-        } catch (e: Exception) {
-            Log.e(TAG, "Delete failed: ${e.message}")
+            ensureDeviceKeyExists()
+            return tryBuildCryptoObject()
         }
-        ensureDeviceKeyExists()
-        return tryBuildCryptoObject()
     }
 
-    private fun tryBuildCryptoObject(): BiometricPrompt.CryptoObject? {
-        return try {
-            val ks  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
-            val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
-                ?: return null
-            val sig = Signature.getInstance("SHA256withECDSA")
-            sig.initSign(key)  // ← REQUIRED for CryptoObject — throws if key invalid
-            BiometricPrompt.CryptoObject(sig)
-        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
-            Log.w(TAG, "Key permanently invalidated — will regenerate")
-            null  // triggers Attempt 2 in buildCryptoObject
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ tryBuildCryptoObject: ${e.message}")
-            null
-        }
+    @Throws(Exception::class)
+    private fun tryBuildCryptoObject(): BiometricPrompt.CryptoObject {
+        val ks  = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
+        val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
+            ?: throw Exception("PRIVATE KEY NOT FOUND IN KEYSTORE")
+            
+        val sig = Signature.getInstance("SHA256withECDSA")
+        sig.initSign(key)  // ← Agar error hai toh yahan se niklay ga
+        return BiometricPrompt.CryptoObject(sig)
     }
 
     // ─────────────────────────────────────────────────────────────

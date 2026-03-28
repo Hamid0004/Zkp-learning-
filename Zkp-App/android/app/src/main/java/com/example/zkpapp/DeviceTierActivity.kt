@@ -156,12 +156,22 @@ class DeviceTierActivity : AppCompatActivity() {
             return
         }
 
-        val cryptoObj = DeviceTierGate.buildCryptoObject()
-        if (cryptoObj == null) {
-            // Key was invalidated (new biometric in PassportActivity)
-            // Reset isProving so next tap works
+        // ✅ NAYA CODE: Catch errors aur screen par dikhayein
+        val cryptoObj = try {
+            DeviceTierGate.buildCryptoObject()
+        } catch (e: Exception) {
+            Log.e(TAG, "CryptoObject build failed", e)
             isProving = false
-            updateStatus("🔄 KEY REFRESHED", colorGold, "TAP SCAN BIOMETRIC AGAIN")
+            updateStatus("❌ CRYPTO ERROR", colorRed, e.message?.take(60)?.uppercase() ?: "UNKNOWN CRYPTO ERROR")
+            btnScan.isEnabled = true
+            btnScan.alpha     = 1f
+            return
+        }
+
+        // Agar purana DeviceTierGate.kt use ho raha ho jo null deta ho
+        if (cryptoObj == null) {
+            isProving = false
+            updateStatus("❌ KEY ERROR", colorRed, "CRYPTO OBJECT RETURNED NULL")
             btnScan.isEnabled = true
             btnScan.alpha     = 1f
             return
