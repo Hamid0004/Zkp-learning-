@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
-import android.util.Log
 import android.view.*
 import android.view.animation.*
 import android.widget.*
@@ -15,6 +14,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
+import com.example.zkpapp.security.ZkBiometricManager
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
@@ -25,16 +25,16 @@ import kotlinx.coroutines.launch
  * Tier 3 — Device + Biometric ZK Proof Screen
  *
  * Flow:
- * 1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
- * 2. User taps "SCAN BIOMETRIC" → BiometricPrompt
- * 3. Biometric success → DeviceTierGate.generateProof()
- * 4. Proof result shown → claims displayed
- * 5. Auto-finish (deep link) or stay (registration mode)
+ *   1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
+ *   2. User taps "SCAN BIOMETRIC" → BiometricPrompt
+ *   3. Biometric success → DeviceTierGate.generateProof()
+ *   4. Proof result shown → claims displayed
+ *   5. Auto-finish (deep link) or stay (registration mode)
  *
  * Intent extras (deep link flow):
- * "domain"    → verifier domain e.g. "discord.com"
- * "challenge" → server challenge hex
- * "callback"  → POST url
+ *   "domain"    → verifier domain e.g. "discord.com"
+ *   "challenge" → server challenge hex
+ *   "callback"  → POST url
  * ═══════════════════════════════════════════════════════════════
  */
 class DeviceTierActivity : AppCompatActivity() {
@@ -73,6 +73,7 @@ class DeviceTierActivity : AppCompatActivity() {
     private var zkSession   = ""  // server session_id — needed to complete poll
 
     private val TAG = "DeviceTierActivity"
+    private val biometricManager by lazy { ZkBiometricManager(this) }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -156,67 +157,45 @@ class DeviceTierActivity : AppCompatActivity() {
             return
         }
 
-        // ✅ NAYA CODE: Catch errors aur screen par dikhayein
-        val cryptoObj = try {
-            DeviceTierGate.buildCryptoObject()
-        } catch (e: Exception) {
-            Log.e(TAG, "CryptoObject build failed", e)
-            isProving = false
-            updateStatus("❌ CRYPTO ERROR", colorRed, e.message?.take(60)?.uppercase() ?: "UNKNOWN CRYPTO ERROR")
-            btnScan.isEnabled = true
-            btnScan.alpha     = 1f
-            return
-        }
-
-        // Agar purana DeviceTierGate.kt use ho raha ho jo null deta ho
+        val cryptoObj = DeviceTierGate.buildCryptoObject()
         if (cryptoObj == null) {
+            // Key was invalidated (new biometric in PassportActivity)
+            // Reset isProving so next tap works
             isProving = false
-            updateStatus("❌ KEY ERROR", colorRed, "CRYPTO OBJECT RETURNED NULL")
+            updateStatus("🔄 KEY REFRESHED", colorGold, "TAP SCAN BIOMETRIC AGAIN")
             btnScan.isEnabled = true
             btnScan.alpha     = 1f
             return
         }
-
-        val executor = ContextCompat.getMainExecutor(this)
-        val prompt = BiometricPrompt(this, executor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    val sig = result.cryptoObject?.signature ?: run {
-                        updateStatus("❌ SIGNATURE ERROR", colorRed, "CRYPTO OBJECT NULL")
-                        resetScanButton()
-                        return
-                    }
-                    onBiometricSuccess(sig)
-                }
-                override fun onAuthenticationError(code: Int, msg: CharSequence) {
-                    if (code != BiometricPrompt.ERROR_USER_CANCELED &&
-                        code != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                        updateStatus("❌ AUTH ERROR", colorRed, msg.toString().uppercase())
-                    } else {
-                        updateStatus("✅ READY", colorGreen, "TAP BUTTON BELOW TO SCAN BIOMETRIC")
-                    }
-                    resetScanButton()
-                }
-                override fun onAuthenticationFailed() {
-                    updateStatus("⚠️ NOT RECOGNIZED", colorGold, "FINGERPRINT NOT MATCHED — TRY AGAIN")
-                    haptic()
-                }
-            })
-
-        val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("ZKAuth — Device Proof")
-            .setSubtitle("Proving you are human · no data is shared")
-            .setDescription("Domain: ${zkDomain.ifEmpty { "local" }}")
-            .setNegativeButtonText("Cancel")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            .build()
 
         isProving              = true
         btnScan.isEnabled      = false
         btnScan.alpha          = 0.5f
         progressBar.visibility = View.VISIBLE
         updateStatus("👆 AUTHENTICATING", colorCyan, "PLACE FINGER ON SENSOR")
-        prompt.authenticate(info, cryptoObj)
+
+        // Use ZkBiometricManager — single instance, no FragmentManager conflict
+        biometricManager.authenticateUser(
+            activity     = this,
+            cryptoObject = cryptoObj,
+            subtitle     = "Proving you are human · domain: ${zkDomain.ifEmpty { "local" }}",
+            onSuccess    = { result ->
+                val sig = result.cryptoObject?.signature ?: run {
+                    updateStatus("❌ SIGNATURE ERROR", colorRed, "CRYPTO OBJECT NULL")
+                    resetScanButton()
+                    return@authenticateUser
+                }
+                onBiometricSuccess(sig)
+            },
+            onError = { errMsg ->
+                updateStatus("❌ AUTH ERROR", colorRed, errMsg.uppercase())
+                resetScanButton()
+            },
+            onFailed = {
+                updateStatus("⚠️ NOT RECOGNIZED", colorGold, "FINGERPRINT NOT MATCHED — TRY AGAIN")
+                haptic()
+            }
+        )
     }
 
     // ── ZK Proof ──────────────────────────────────────────────────────────────
