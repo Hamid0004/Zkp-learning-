@@ -68,7 +68,7 @@ object DeviceTierGate {
         }
     }
 
-    // ✅ FIX 2: Better key recreation logic without buggy attestation
+    // ✅ FIX 2: Smart Fallback Logic for Hardware Attestation
     fun ensureDeviceKeyExists(forceRecreate: Boolean = false) {
         val ks = KeyStore.getInstance(ANDROID_KEYSTORE).also { it.load(null) }
         
@@ -85,27 +85,45 @@ object DeviceTierGate {
         }
 
         Log.d(TAG, "🔑 Generating Tier 3 device key (v2)...")
-        val kpg = KeyPairGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_EC,
-            ANDROID_KEYSTORE
-        )
         
-        // ❌ Yahan se humne Hardware Attestation hata di hai jo InvalidKeyException de rahi thi
+        try {
+            // ATTEMPT 1: Strict Hardware Attestation ke sath try karein (Highest Security)
+            generateKey(useAttestation = true)
+            Log.d(TAG, "✅ Tier 3 key generated WITH Hardware Attestation")
+            
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Hardware Attestation failed (${e.message}). Falling back to Basic Keystore...")
+            // ATTEMPT 2: Fallback - Agar phone support na kare toh bina strict attestation ke banayein
+            try { ks.deleteEntry(DEVICE_KEY_ALIAS) } catch (_: Exception) {} // Clear failed key
+            generateKey(useAttestation = false)
+            Log.d(TAG, "✅ Tier 3 key generated WITHOUT strict attestation (Fallback)")
+        }
+    }
+
+    // Helper function for Smart Fallback
+    private fun generateKey(useAttestation: Boolean) {
+        val kpg = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, ANDROID_KEYSTORE)
+        
         val specBuilder = KeyGenParameterSpec.Builder(
             DEVICE_KEY_ALIAS,
             KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
         )
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setKeySize(256)
-            .setUserAuthenticationRequired(true)
+            .setUserAuthenticationRequired(true) // Biometric lock is compulsory
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             specBuilder.setInvalidatedByBiometricEnrollment(false)
         }
 
+        // Agar attempt 1 hai, toh attestation lagao
+        if (useAttestation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            specBuilder.setAttestationChallenge("ZKP_CHALLENGE".toByteArray())
+            specBuilder.setDevicePropertiesAttestationIncluded(true) 
+        }
+
         kpg.initialize(specBuilder.build())
         kpg.generateKeyPair()
-        Log.d(TAG, "✅ Tier 3 device key generated")
     }
 
     suspend fun generateProof(
