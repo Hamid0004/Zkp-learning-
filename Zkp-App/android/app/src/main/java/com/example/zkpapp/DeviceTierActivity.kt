@@ -15,7 +15,9 @@ import androidx.biometric.BiometricPrompt
 import androidx.cardview.widget.CardView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * DeviceTierActivity.kt v1.0
@@ -24,16 +26,16 @@ import kotlinx.coroutines.launch
  * Tier 3 — Device + Biometric ZK Proof Screen
  *
  * Flow:
- *   1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
- *   2. User taps "SCAN BIOMETRIC" → BiometricPrompt
- *   3. Biometric success → DeviceTierGate.generateProof()
- *   4. Proof result shown → claims displayed
- *   5. Auto-finish (deep link) or stay (registration mode)
+ * 1. Screen loads → ensureDeviceKeyExists() + warmup() [background]
+ * 2. User taps "SCAN BIOMETRIC" → BiometricPrompt
+ * 3. Biometric success → DeviceTierGate.generateProof()
+ * 4. Proof result shown → claims displayed
+ * 5. Auto-finish (deep link) or stay (registration mode)
  *
  * Intent extras (deep link flow):
- *   "domain"    → verifier domain e.g. "discord.com"
- *   "challenge" → server challenge hex
- *   "callback"  → POST url
+ * "domain"    → verifier domain e.g. "discord.com"
+ * "challenge" → server challenge hex
+ * "callback"  → POST url
  * ═══════════════════════════════════════════════════════════════
  */
 class DeviceTierActivity : AppCompatActivity() {
@@ -73,6 +75,34 @@ class DeviceTierActivity : AppCompatActivity() {
 
     private val TAG = "DeviceTierActivity"
 
+    // 🛠️ BUG FIX: BiometricPrompt is strictly initialized ONLY ONCE per activity
+    private val biometricPrompt by lazy {
+        val executor = ContextCompat.getMainExecutor(this)
+        BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                val sig = result.cryptoObject?.signature ?: run {
+                    updateStatus("❌ SIGNATURE ERROR", colorRed, "CRYPTO OBJECT NULL")
+                    resetScanButton()
+                    return
+                }
+                onBiometricSuccess(sig)
+            }
+            override fun onAuthenticationError(code: Int, msg: CharSequence) {
+                if (code != BiometricPrompt.ERROR_USER_CANCELED &&
+                    code != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                    updateStatus("❌ AUTH ERROR", colorRed, msg.toString().uppercase())
+                } else {
+                    updateStatus("✅ READY", colorGreen, "TAP BUTTON BELOW TO SCAN BIOMETRIC")
+                }
+                resetScanButton()
+            }
+            override fun onAuthenticationFailed() {
+                updateStatus("⚠️ NOT RECOGNIZED", colorGold, "FINGERPRINT NOT MATCHED — TRY AGAIN")
+                haptic()
+            }
+        })
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,22 +130,22 @@ class DeviceTierActivity : AppCompatActivity() {
         btnScan.isEnabled = false
         btnScan.alpha     = 0.4f
 
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.Default) {
             try {
                 // Step 1: KeyStore setup
-                runOnUiThread { updateStatus("🔑 STEP 1/3", colorGold, "GENERATING DEVICE KEY") }
+                withContext(Dispatchers.Main) { updateStatus("🔑 STEP 1/3", colorGold, "GENERATING DEVICE KEY") }
                 DeviceTierGate.ensureDeviceKeyExists()
 
                 // Step 2: Circuit warmup (slow on first install — Plonky2 build)
-                runOnUiThread { updateStatus("⚙️ STEP 2/3", colorGold, "BUILDING ZK CIRCUIT · FIRST TIME ONLY") }
+                withContext(Dispatchers.Main) { updateStatus("⚙️ STEP 2/3", colorGold, "BUILDING ZK CIRCUIT · FIRST TIME ONLY") }
                 DeviceTierGate.warmup()
 
                 // Step 3: Ready
-                runOnUiThread { updateStatus("✅ STEP 3/3", colorGold, "CIRCUIT READY") }
+                withContext(Dispatchers.Main) { updateStatus("✅ STEP 3/3", colorGold, "CIRCUIT READY") }
                 kotlinx.coroutines.delay(300)
 
                 isReady = true
-                runOnUiThread {
+                withContext(Dispatchers.Main) {
                     btnScan.isEnabled = true
                     btnScan.alpha     = 1f
 
@@ -131,7 +161,7 @@ class DeviceTierActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 android.util.Log.e(TAG, "Init failed: ${e.message}", e)
-                runOnUiThread {
+                withContext(Dispatchers.Main) {
                     updateStatus("❌ INIT FAILED", colorRed,
                         e.message?.take(60)?.uppercase() ?: "UNKNOWN ERROR · RESTART APP")
                     // Allow retry — enable btn
@@ -157,40 +187,13 @@ class DeviceTierActivity : AppCompatActivity() {
 
         val cryptoObj = DeviceTierGate.buildCryptoObject()
         if (cryptoObj == null) {
-            // Key was invalidated (new biometric in PassportActivity)
-            // Reset isProving so next tap works
+            // Key was invalidated
             isProving = false
             updateStatus("🔄 KEY REFRESHED", colorGold, "TAP SCAN BIOMETRIC AGAIN")
             btnScan.isEnabled = true
             btnScan.alpha     = 1f
             return
         }
-
-        val executor = ContextCompat.getMainExecutor(this)
-        val prompt = BiometricPrompt(this, executor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    val sig = result.cryptoObject?.signature ?: run {
-                        updateStatus("❌ SIGNATURE ERROR", colorRed, "CRYPTO OBJECT NULL")
-                        resetScanButton()
-                        return
-                    }
-                    onBiometricSuccess(sig)
-                }
-                override fun onAuthenticationError(code: Int, msg: CharSequence) {
-                    if (code != BiometricPrompt.ERROR_USER_CANCELED &&
-                        code != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                        updateStatus("❌ AUTH ERROR", colorRed, msg.toString().uppercase())
-                    } else {
-                        updateStatus("✅ READY", colorGreen, "TAP BUTTON BELOW TO SCAN BIOMETRIC")
-                    }
-                    resetScanButton()
-                }
-                override fun onAuthenticationFailed() {
-                    updateStatus("⚠️ NOT RECOGNIZED", colorGold, "FINGERPRINT NOT MATCHED — TRY AGAIN")
-                    haptic()
-                }
-            })
 
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle("ZKAuth — Device Proof")
@@ -205,7 +208,9 @@ class DeviceTierActivity : AppCompatActivity() {
         btnScan.alpha          = 0.5f
         progressBar.visibility = View.VISIBLE
         updateStatus("👆 AUTHENTICATING", colorCyan, "PLACE FINGER ON SENSOR")
-        prompt.authenticate(info, cryptoObj)
+        
+        // 🛠️ BUG FIX: Using the single, lazy instance instead of recreating it
+        biometricPrompt.authenticate(info, cryptoObj)
     }
 
     // ── ZK Proof ──────────────────────────────────────────────────────────────
@@ -213,9 +218,11 @@ class DeviceTierActivity : AppCompatActivity() {
         haptic()
         progressBar.visibility = View.VISIBLE
 
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.Default) {
             // Step 1: Collecting device data
-            updateStatus("⚡ STEP 1/3", colorCyan, "COLLECTING DEVICE DATA...")
+            withContext(Dispatchers.Main) {
+                updateStatus("⚡ STEP 1/3", colorCyan, "COLLECTING DEVICE DATA...")
+            }
 
             val result = DeviceTierGate.generateProof(
                 context    = this@DeviceTierActivity,
@@ -231,7 +238,7 @@ class DeviceTierActivity : AppCompatActivity() {
                 }
             )
 
-            runOnUiThread {
+            withContext(Dispatchers.Main) {
                 progressBar.visibility = View.GONE
                 resetScanButton()
                 when (result) {
