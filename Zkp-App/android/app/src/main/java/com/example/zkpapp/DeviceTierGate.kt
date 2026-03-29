@@ -240,8 +240,10 @@ object DeviceTierGate {
         val key = ks.getKey(DEVICE_KEY_ALIAS, null) as? java.security.PrivateKey
             ?: throw Exception("PRIVATE KEY NOT FOUND IN KEYSTORE")
 
-        val sig = Signature.getInstance("SHA256withECDSA")
-        sig.initSign(key)  // ← Hardware bug was crashing here
+        // ✅ AndroidKeyStore provider MUST be specified for hardware-backed EC keys
+        // Default BouncyCastle provider → "no encoding for EC private key" crash
+        val sig = Signature.getInstance("SHA256withECDSA", "AndroidKeyStoreBCWorkaround")
+        sig.initSign(key)
         return BiometricPrompt.CryptoObject(sig)
     }
 
