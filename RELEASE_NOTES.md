@@ -5,136 +5,125 @@
 
 ---
 
-## What is ZKAuth?
+## Release Summary
 
-ZKAuth replaces passwords, CAPTCHAs, and traditional KYC with **cryptographic proofs**.  
-Instead of sending your identity to a server, your device generates a mathematical proof — your name, passport number, and fingerprint **never leave your phone**.
+ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with Tier 1 passport NFC and Tier 3 biometric device proof. This release focuses on on-device proof generation, strong privacy guarantees, and live verification support.
 
----
+## What’s Included in v1.0 Beta
 
-## Live Demo
+- Tier 1 Passport NFC identity proof via ICAO 9303
+- Tier 3 Android device + biometric proof using KeyStore + BiometricPrompt
+- Rust-based ZK circuit engine with Plonky2
+- JNI bridge between Kotlin and Rust
+- Node.js relay on Railway for proof verification
+- Live demo deployment and dashboard
 
-**Try it now:** 🌐 [zkp-identity-production.up.railway.app](https://zkp-identity-production.up.railway.app)
+## Performance Highlights
 
-```text
-1. Install APK on Android
-2. Open app → Register identity (Tier 3 or Tier 1)
-3. Visit the link above on any browser
-4. Scan QR or tap "Device Proof"
-5. Fingerprint → Dashboard ✅
-Metric,ZKAuth (Plonky2),Industry Standard (Groth16),Improvement
-Proof Generation,39 ms,~450 ms,11x faster
-Verification,8 ms,~300 ms,37x faster
-Proof Size,20 KB,~200 KB,10x smaller
-Memory Used,78 KB,~150 MB,90% lighter
-Circuit Setup,8 ms,~2000 ms,250x faster
-Witness Gen,2 µs,~50 ms,"25,000x faster"
-Constraints,8,~2M+,Minimal
-Battery (100 runs),0% drop,3–5% drop,Green ✅
+| Metric | ZKAuth (Plonky2) | Industry Standard (Groth16) | Improvement |
+|---|---|---|---|
+| Proof generation | 39 ms | ~450 ms | 11× faster |
+| Verification | 8 ms | ~300 ms | 37× faster |
+| Proof size | 20 KB | ~200 KB | 10× smaller |
+| Memory used | 78 KB | ~150 MB | 90% lighter |
+| Circuit setup | 8 ms | ~2000 ms | 250× faster |
+| Witness generation | 2 µs | ~50 ms | 25,000× faster |
+| Constraints | 8 | ~2M+ | Minimal |
+| Battery (100 runs) | 0% drop | 3–5% drop | Efficient |
 
-TIER 1 — Passport NFC        🛂  MAXIMUM TRUST
-  Government-verified identity via ICAO 9303
-  Proves: is_adult, nationality, is_human
-  Use: Banking, KYC, Age verification, Government portals
+## Trust Tiers
 
-TIER 2 — National ID         🪪  HIGH TRUST      [Coming Soon]
-  NFC CNIC / Aadhaar
-  Proves: age, nationality
+### TIER 1 — Passport NFC 🛂  MAXIMUM TRUST
+- Government-verified identity via ICAO 9303
+- Proves: `is_adult`, `nationality`, `is_human`
+- Use cases: banking, KYC, age verification, government portals
 
-TIER 3 — Device + Biometric  📱  BASIC TRUST
-  Android KeyStore + BiometricPrompt
-  Proves: is_human, is_real_device, is_unique
-  Use: CAPTCHA replacement, Bot prevention, Passwordless login
+### TIER 2 — National ID 🪪  HIGH TRUST *(coming soon)*
+- NFC CNIC / Aadhaar
+- Proves: `age`, `nationality`
 
-  Key Features
-✅ Offline-first — ZK proofs generate 100% on-device, no cloud needed
+### TIER 3 — Device + Biometric 📱  BASIC TRUST
+- Android KeyStore + BiometricPrompt
+- Proves: `is_human`, `is_real_device`, `is_unique`
+- Use cases: CAPTCHA replacement, bot prevention, passwordless login
 
-✅ Cross-device login — Scan QR on PC, authenticate on phone
+## Key Features
 
-✅ Trust enforcement — Server rejects mock proofs for sensitive claims
+- ✅ Offline-first proof generation on device
+- ✅ Cross-device login via QR scan
+- ✅ Server-side trust enforcement for sensitive claims
+- ✅ Replay protection with domain-scoped Poseidon nullifiers
+- ✅ Zeroized secret handling via Rust memory safety
+- ✅ Anti-tamper controls: root/emulator detection, rate limiting, vault wipe
+- ✅ Post-quantum friendly design without pairing-based trusted setup
+- ✅ GDPR-aligned data minimization and nullifier-only storage
 
-✅ Replay prevention — Poseidon domain-scoped nullifiers
+## Architecture Overview
 
-✅ Memory safe — Secrets zeroized from RAM after use (Rust zeroize crate)
+- **Android app**: Kotlin + Jetpack Compose
+- **JNI bridge**: `cargo-ndk` → `libzkp_mobile.so`
+- **Rust ZK engine**: Plonky2
+  - `device_tier.rs` — Tier 3 Merkle proof flow
+  - `passport_security.rs` — Tier 1 ICAO 9303 + SOD verification
+  - `proof_bench.rs` — benchmark engine
+- **Backend relay**: Node.js + Express on Railway
+  - `/zkauth/verify` — proof verification
+  - `/api/poll-status` — session polling
+- **Dashboard**: trust-level UI for MAXIMUM / BASIC proofs
 
-✅ Anti-tamper — Root/emulator detection, rate limiting, vault wipe
+## Security Model
 
-✅ Post-quantum — FRI-based, no trusted setup, no elliptic curve pairings
+| Threat | Mitigation |
+|---|---|
+| Spoofing | BiometricPrompt CryptoObject + StrongBox HSM |
+| Tampering | Root/Frida detection + Rust JNI panic boundary |
+| Repudiation | Domain-scoped Poseidon nullifier |
+| Information disclosure | ByteArray zeroization + AES-256-GCM at rest |
+| Denial of service | Rate limiting + 10-attempt vault wipe |
+| Elevation of privilege | Global lifecycle lock + fresh biometric on resume |
 
-✅ GDPR by design — Server stores nullifier hash only, zero PII
+## Technology Stack
 
-Android (Kotlin + Jetpack Compose)
-    ↓ JNI bridge
-Rust (Plonky2)
-    ├── device_tier.rs    — Tier 3: 4-leaf Merkle proof
-    ├── passport_security.rs — Tier 1: ICAO 9303 + SOD verify
-    └── proof_bench.rs    — Benchmark engine
-    ↓ HTTPS POST
-Node.js Relay (Railway)
-    ├── /zkauth/verify    — Proof verification
-    ├── /api/poll-status  — Session polling
-    └── Trust enforcement — 403 on insufficient trust
-    ↓ poll 300ms
-Website Dashboard
-    └── trust_level: MAXIMUM | BASIC
+| Layer | Technology |
+|---|---|
+| ZK circuits | Plonky2 v0.2.2 (Rust nightly) |
+| Hashing | Poseidon (ZK-optimized) |
+| Key derivation | HKDF-SHA256 + Argon2 |
+| Memory safety | Rust `zeroize` v1.7 |
+| Android | Kotlin + Jetpack Compose |
+| JNI bridge | `cargo-ndk` → `libzkp_mobile.so` |
+| Biometric | Android KeyStore + BiometricPrompt |
+| NFC | IsoDep + ICAO 9303 BAC |
+| Server | Node.js + Express |
+| Deployment | Railway |
 
-    Threat,Mitigation
-Spoofing,BiometricPrompt.CryptoObject + StrongBox HSM
-Tampering,"Root/Frida detection, Rust JNI panic boundary"
-Repudiation,Domain-scoped Poseidon nullifier (replay impossible)
-Information Disclosure,"ByteArray zeroization, AES-256-GCM at rest"
-Denial of Service,"Rate limiting, 10-attempt vault wipe, async Rust"
-Elevation of Privilege,"Global lifecycle lock, fresh biometric on resume"
+## Installation (Beta)
 
-Layer,Technology
-ZK Circuits,Plonky2 v0.2.2 (Rust nightly)
-Hashing,"Poseidon (ZK-optimized, 8 constraints)"
-Key Derivation,HKDF-SHA256 + Argon2
-Memory Safety,Rust zeroize v1.7
-Android,Kotlin + Jetpack Compose
-JNI Bridge,cargo-ndk → libzkp_mobile.so
-Biometric,AndroidKeyStore + BiometricPrompt
-NFC,IsoDep + ICAO 9303 BAC
-Server,Node.js + Express
-Deployment,Railway
+1. Download `app-arm64-v8a-debug.apk`
+2. Enable install from unknown sources on your Android device
+3. Install and open the app
+4. Grant camera, biometric, and NFC permissions
 
-Installation
-Download app-arm64-v8a-debug.apk below
+**Requirements:** Android 10+ | ARM64 device | Fingerprint enrolled
 
-Enable Install from unknown sources on your Android device
+## Known Limitations
 
-Install and open the app
+- Tier 2 National ID (CNIC/Aadhaar) is planned for v1.1
+- iOS is not supported yet (Android only)
+- Railway free tier may show 5–10 second cold start on first request
+- Simulate scan button is visible in debug builds only
 
-Grant camera, biometric, NFC permissions
+## Roadmap
 
-Requirements: Android 10+ | ARM64 device | Fingerprint enrolled
+- `v1.0 Beta` — current release
+- `v1.1` — OAuth / "Login with ZKAuth" button + JS SDK
+- `v2.0` — Tier 2 National ID + iOS support
 
-Research
-Thesis (Submitted): "Privacy-Preserving Offline Identity Verification on Resource-Constrained Mobile Devices using Plonky2"
+## Author
 
-IEEE Paper (Submitted — Phases 1-5): "Efficient Post-Quantum Zero-Knowledge Verification on Resource-Constrained Mobile Edges: A Native Plonky2 Approach"
-
-Note: The IEEE submission covers the core offline ZKP engine (Phases 1–5).
-
-NFC Passport (Tier 1), Web Login (Tier 3), and Biometric Binding are post-submission extensions.
-
-Known Limitations (Beta)
-Tier 2 National ID (CNIC/Aadhaar) — coming in v1.1
-
-iOS not supported (Android only)
-
-Railway free tier — occasional 5-10 sec cold start on first request
-
-Simulate scan button visible in debug build (hidden in production)
-
-v1.0 Beta  — Current release
-v1.1       — OAuth / "Login with ZKAuth" button + JS SDK
-v2.0       — Tier 2 National ID + iOS support
-
-Author
 Hamid Iqbal — @hamidiqbal369
 
-Final-year IT Student · ZK Proof Engineer
+Final-year IT student · ZK proof engineer
 
 Repository: github.com/Hamid0004/zkp-identity
 
