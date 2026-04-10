@@ -13,7 +13,6 @@ use std::cmp::min;
 // Logic & Serialization
 use anyhow::{Context, Result, bail};
 use base64::{Engine as _, engine::general_purpose};
-// ✅ Fix 1: crc32fast (not 32fast — identifiers cannot start with number)
 use crc32fast::Hasher as Crc32Hasher;
 
 // Plonky2 Imports
@@ -27,15 +26,14 @@ use plonky2::iop::witness::{PartialWitness, WitnessWrite};
 use plonky2::iop::target::Target;
 use plonky2::hash::hash_types::HashOutTarget;
 
-// ✅ Fix 2: serde import proper use statement (was missing `use`)
+// serde import proper use statement
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 use hex;
 
 // Android Logging
 use android_logger::Config;
-// ✅ Fix 3: Remove unused warn import
-use log::{info, error, LevelFilter};
+use log::{info, LevelFilter};          // ← `error` removed (unused)
 
 // Cryptography
 use sha2::{Sha256, Digest};

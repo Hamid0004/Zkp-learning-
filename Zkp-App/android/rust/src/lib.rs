@@ -1,6 +1,6 @@
 use jni::JNIEnv;
-use jni::objects::{JClass, JString, JObject, JValue, JByteArray};
-use jni::sys::{jstring, jobject, jbyteArray};
+use jni::objects::{JClass, JObject, JValue, JByteArray}; // JString removed
+use jni::sys::{jobject, jbyteArray};                     // jstring removed
 use android_logger::Config;
 use log::{LevelFilter, info, error, warn};
 use std::sync::Once;

@@ -307,6 +307,7 @@ pub struct PassportData {
     pub device_pubkey_hex:    Option<String>, // [NEW v5.0] Android Keystore PubKey
 }
 
+#[allow(dead_code)] // fields are used during tree construction but not read directly after
 #[derive(Debug, Clone)]
 struct IdentityLeaf { label: &'static str, value: Vec<F>, salt: [F; 4], hash: HashOut<F> }
 

@@ -14,10 +14,11 @@ target/
 *.so
 *.zip
 
-# ─── Android Studio ──────────────────────────────────────────
+# ─── Android Studio & Gradle ─────────────────────────────────
 .idea/
 *.iml
 .gradle/
+**/.gradle/
 local.properties
 captures/
 .externalNativeBuild/

@@ -5,7 +5,7 @@ use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 use plonky2_field::goldilocks_field::GoldilocksField as F;
 use plonky2_field::types::Field;
-use plonky2_field::types::PrimeField64;  // 
+use plonky2_field::types::PrimeField64;
 use sha2::Sha256;
 use zeroize::{Zeroize, Zeroizing};
 
