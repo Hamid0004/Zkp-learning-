@@ -33,7 +33,6 @@ fn init_logger() {
 pub mod offline_identity;
 pub mod passport_security;
 pub mod device_tier;       // Tier 3 — Device + Biometric
-pub mod zk_auth;
 pub mod proof_bench;
 pub mod secure_vault;
 
