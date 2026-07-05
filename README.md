@@ -69,7 +69,7 @@ We benchmarked the system against industry-standard mobile ZKP implementations.
 ### Compilation Steps
 1.  **Compile Rust Library:**
     ```bash
-    cd rust_core
+    cd Zkp-App/android/rust
     ./build_android.sh
     ```
 2.  **Build Android APK:**

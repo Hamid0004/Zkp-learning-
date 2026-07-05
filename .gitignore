@@ -20,6 +20,7 @@ target/
 .gradle/
 **/.gradle/
 local.properties
+**/local.properties
 captures/
 .externalNativeBuild/
 .cxx/
@@ -38,5 +39,10 @@ usage.txt
 .DS_Store
 Thumbs.db
 
-# ─── Logs ────────────────────────────────────────────────────
+# ─── Node / JS (Circom experiments, etc.) ────────────────────
+node_modules/
+**/node_modules/
+
+# ─── Logs ─────────────────────────────────────────────────────
 *.log
+**/*.log
