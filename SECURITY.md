@@ -1,59 +1,59 @@
-# 🛡️ ZKP Mobile Identity Vault
+# ZKAuth — Mobile Identity Vault (Security Design)
 
-> A military-grade, privacy-first mobile identity wallet leveraging Zero-Knowledge Proofs (ZK-STARKs) and Post-Quantum cryptographic primitives.
+> A privacy-first mobile identity wallet leveraging Zero-Knowledge Proofs (Plonky2) and hash-based cryptographic primitives.
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue.svg?logo=kotlin)
 ![Rust](https://img.shields.io/badge/Rust-1.75-orange.svg?logo=rust)
 ![Plonky2](https://img.shields.io/badge/ZKP-Plonky2-purple.svg)
-![Security](https://img.shields.io/badge/Security-Mariana_Trench-red.svg)
 
-## 📖 Overview
-The **ZKP Mobile Identity Vault** is an advanced mobile architecture designed to shift the paradigm from *Data Sharing* to *Data Proving*. By utilizing Fast Reed-Solomon Interactive Oracle Proofs (FRI) via Plonky2, the application allows users to generate cryptographic proofs of identity directly on their mobile device—without ever exposing the underlying plaintext data.
+## Overview
+ZKAuth's identity vault shifts the paradigm from *data sharing* to *data proving*. Using Fast Reed-Solomon Interactive Oracle Proofs (FRI) via Plonky2, the app generates cryptographic proofs of identity directly on-device — without ever exposing the underlying plaintext data.
 
-This project goes beyond standard mobile development by implementing strict, enterprise-level security protocols, mitigating both conventional runtime threats and theoretical quantum-computing attacks.
+This document covers the security design choices made to defend against both conventional runtime threats and the cryptographic assumptions the system deliberately avoids.
 
-## ✨ Core Features
+## Core Features
 
-### 🔐 1. Cryptographic Identity Generation
-* **True BIP39 Standard:** Generates 128-bit entropy with SHA-256 checksum validation for creating standard 12-word recovery phrases.
-* **HKDF-SHA256 Derivation:** Securely expands the raw hardware seed into a 32-byte Master ZKP Key.
-* **Merkle-Based Selective Disclosure:** Identity attributes are hashed into a salted Merkle Tree, allowing users to prove specific data points without revealing their entire identity.
+### 1. Cryptographic Identity Generation
+* **BIP39-standard seed phrases:** 128-bit entropy with SHA-256 checksum validation, generating standard 12-word recovery phrases.
+* **HKDF-SHA256 derivation:** Expands the raw hardware seed into a 32-byte master ZKP key.
+* **Merkle-based selective disclosure:** Identity attributes are hashed into a salted Merkle tree, allowing proof of specific claims without revealing the full identity.
 
-### 🛑 2. Active Tamper Defense & Hard Blocking
-* **Environment Validation:** Actively scans for rooted environments, Magisk/SuperSU binaries, custom ROM test-keys, and emulators.
-* **The "Hard Block":** Automatically kills the app process (`finishAffinity()`) and blocks UI rendering upon detecting a compromised OS, preventing memory hooking via Frida or Xposed.
-* **Rate Limiting & "Nuclear Option":** Implements strict exponential backoff for biometric failures. Automatically wipes the encrypted vault after 10 consecutive failed attempts.
+### 2. Runtime Tamper Defense
+* **Environment validation:** Checks for rooted environments, Magisk/SuperSU binaries, custom ROM test-keys, and emulators.
+* **Hard block on compromise:** Terminates the app process (`finishAffinity()`) and blocks UI rendering if a compromised OS is detected, to reduce the window for memory hooking via tools like Frida or Xposed.
+* **Rate limiting:** Exponential backoff on biometric failures, with the encrypted vault wiped after 10 consecutive failed attempts.
 
-### 🧹 3. Deep Memory Protection (Zeroization)
-* **String-Pool Bypassing:** Critical secrets are never stored in Java/Kotlin `String` objects to prevent garbage-collection latency attacks. Data is handled exclusively as raw `ByteArray` streams.
-* **C++ Heap Wiping:** Across the JNI bridge, the Rust engine utilizes the `zeroize` crate to forcefully overwrite the allocated RAM with `0x00` the moment the ZKP generation concludes.
+### 3. Memory Protection (Zeroization)
+* **Avoids the JVM string pool:** Secrets are handled as raw `ByteArray` rather than `String`, to avoid lingering copies from garbage collection.
+* **Heap wiping across the JNI bridge:** The Rust engine uses the `zeroize` crate to overwrite allocated memory once ZKP generation concludes.
 
-### 🏛️ 4. Hardware-Backed Storage
-* **Android StrongBox / Titan M:** Master encryption keys are generated and bound directly to the device's hardware security module (HSM).
-* **AES-GCM Encryption:** Data at rest is secured via AES-GCM, gated by Android's `BiometricPrompt` (`CryptoObject`).
+### 4. Hardware-Backed Storage
+* **Android StrongBox / Titan M (where available):** Master encryption keys are bound to the device's hardware security module.
+* **AES-GCM encryption at rest**, gated behind `BiometricPrompt` (`CryptoObject`).
 
-## 🧠 System Architecture
+## System Architecture
 
-The application is built on a high-performance **Kotlin ↔ JNI ↔ Rust** bridge:
+Built on a **Kotlin ↔ JNI ↔ Rust** bridge:
 
-1. **Frontend (Kotlin + Jetpack Compose):** Handles reactive UI states via `StateFlow` and securely captures biometric hardware prompts.
-2. **The JNI Bridge (C-Bindings):** Safely transports raw byte arrays between the JVM and the native C++ heap, configured with `panic = "unwind"` to prevent JVM crashes.
-3. **Backend Engine (Rust):** Executes heavy mathematical operations, including HKDF extraction, Merkle Tree hashing, and Plonky2 ZK-STARK circuit evaluations.
+1. **Frontend (Kotlin + Jetpack Compose):** Reactive UI state via `StateFlow`, captures biometric prompts.
+2. **JNI Bridge (C-bindings):** Transports raw byte arrays between the JVM and native heap; configured with `panic = "unwind"` so a Rust panic doesn't crash the JVM.
+3. **Backend Engine (Rust):** HKDF extraction, Merkle tree hashing, and Plonky2 ZK circuit evaluation.
 
-## 🛡️ Threat Model Compliance
-This architecture has been rigorously designed against the **STRIDE Threat Model** and complies with the **OWASP MASVS (Mobile Application Security Verification Standard)**:
-* **MASVS-STORAGE:** Secure memory wiping and encrypted SharedPreferences.
-* **MASVS-CRYPTO:** Domain-separated salts, true entropy generation, and Post-Quantum Resistant (PQR) hash-based cryptography.
-* **MASVS-RESILIENCE:** Strict root detection, debug-blocking, and process self-termination.
+## Threat Model Notes
+Security design is informed by the **STRIDE threat model** and aligns with several **OWASP MASVS** categories:
+* **MASVS-STORAGE:** Memory wiping, encrypted SharedPreferences.
+* **MASVS-CRYPTO:** Domain-separated salts, true entropy generation, and hash-based cryptography (Plonky2/Poseidon) instead of elliptic-curve pairings — this avoids the discrete-log/factoring assumptions that quantum algorithms like Shor's are known to break. This is a promising property for post-quantum resistance, though the implementation has not undergone formal post-quantum certification.
+* **MASVS-RESILIENCE:** Root detection, debug-blocking, process self-termination on compromise.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 * [Android Studio (Iguana+)](https://developer.android.com/studio)
 * [Rust Toolchain (rustup)](https://rustup.rs/)
-* Android NDK (Installed via Android Studio SDK Manager)
+* Android NDK (installed via Android Studio SDK Manager)
 
 ### Build Instructions
 1. Clone the repository:
-   ```bash
-   git clone [https://github.com/arsalankhann0004/zkp-identity.git](https://github.com/arsalankhann0004/zkp-identity.git)
+```bash
+   git clone https://github.com/Hamid0004/zkp-identity.git
+```
