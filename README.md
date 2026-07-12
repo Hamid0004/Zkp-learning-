@@ -1,40 +1,23 @@
-# Zero-Knowledge Offline Identity Verifier (Mobile)
+# ZKAuth — Offline Zero-Knowledge Identity Verifier
 
-> Privacy-Preserving Identity Verification on Android using Plonky2 & Rust
+> Privacy-preserving identity verification for Android — no blockchain, no internet required.
 
 ![Status](https://img.shields.io/badge/Status-Complete-success)
 ![Tech](https://img.shields.io/badge/Built%20With-Rust%20%7C%20Kotlin%20%7C%20Plonky2-orange)
 ![Performance](https://img.shields.io/badge/Performance-20ms%20Verify-brightgreen)
 
 ## Overview
-This project is a **Final Year Project (FYP)** demonstrating a novel approach to digital identity. Unlike traditional systems that rely on internet connectivity or heavy blockchain lookups, this application verifies **Zero-Knowledge Proofs (ZKPs)** entirely **offline** on the device.
+ZKAuth is a **Final Year Project (FYP)** demonstrating a novel approach to digital identity. It uses **Zero-Knowledge Proofs (ZKPs)**, generated and verified entirely on-device via a custom **Rust-based native engine** (linked to Android through JNI), to prove identity claims without exposing personal data or requiring internet access.
 
-It utilizes a custom **Rust-based Native Engine** linked via JNI to Android, enabling high-performance **Plonky2** proof verification even on resource-constrained hardware.
+The system is built around three independent circuits, each with its own security engineering history (see version notes in source):
 
----
-
-## Key Features
-
-* **Fast Verification:** Verifies cryptographic proofs in **~19ms**.
-* **Eco-Friendly:** Consumes **0% Battery** over 100 continuous verification cycles.
-* **100% Offline:** Uses a "Fountain Code" QR stream to transfer data without Internet, Bluetooth, or NFC.
-* **Tamper Resistant:** Includes a security module that detects and rejects modified/fake proofs instantly.
-* **Lightweight:** Runs on low-end and older Android devices (Tested: ~14MB RAM usage).
-
----
-
-## Performance Benchmarks
-
-Internal benchmarks comparing this implementation (Plonky2) against a standard Groth16 mobile setup:
-
-| Metric | **Plonky2 (This Project)** | **Groth16 (Standard)** | **Improvement** |
+| Tier | Circuit | Trust Source | What it Proves |
 | :--- | :--- | :--- | :--- |
-| **Verification Time** | ~19.2 ms | ~450 ms | ~23x faster |
-| **RAM Usage** | ~14 MB | ~150 MB | ~90% lighter |
-| **Battery Impact** | 0% Drop (100 runs) | ~5% drop | Green Energy |
-| **Setup Type** | Transparent (no trusted setup) | Trusted setup required | More secure |
+| **[Tier 1 — Passport](TIER1_PASSPORT.md)** | `passport_security.rs` (v5.1) | Government-signed NFC passport chip (ICAO 9303) | `is_human`, `is_adult`, `nationality`, `passport_valid` |
+| **Tier 2 — National ID** | *coming soon* | NFC CNIC / Aadhaar | `age`, `nationality` |
+| **[Tier 3 — Device](TIER3_DEVICE.md)** | `device_tier.rs` (v2.0) | Phone's fingerprint sensor + hardware KeyStore | `is_human`, `is_real_device`, `is_unique`, `account_age_ok` |
 
-> *Tested on: Android device (Snapdragon 6-series equivalent). Battery test conducted via internal 100-loop benchmark driver.*
+Once an identity is established via Tier 1, it can be broadcast to a nearby device **fully offline** via a QR-stream protocol — see [OFFLINE_IDENTITY.md](OFFLINE_IDENTITY.md) for how that transmission layer works, its architecture, and performance benchmarks.
 
 ---
 
@@ -42,17 +25,15 @@ Internal benchmarks comparing this implementation (Plonky2) against a standard G
 
 * **Core Logic:** Rust (Plonky2 library)
 * **Mobile Bridge:** JNI (Java Native Interface)
-* **Android UI:** Kotlin + ZXing (customized for QR streaming)
+* **Android UI:** Kotlin + Jetpack Compose + ZXing (QR streaming)
 * **Build Tool:** Cargo NDK
+* **Backend:** Node.js relay (Railway) for cross-device login verification
 
 ---
 
-## Screenshots & Demo
+## ⭐ Support This Project
 
-| **Identity Verified (Success)** | **Fake Proof Detected (Security)** |
-| :---: | :---: |
-| <img src="screenshots/verified.jpg" width="250"> | <img src="screenshots/fake_proof.jpg" width="250"> |
-| *Time: 19ms · RAM: 9MB* | *Rejected instantly* |
+If you find this useful, consider giving it a star — it helps a lot and keeps the project visible to others working on ZK identity!
 
 ---
 
