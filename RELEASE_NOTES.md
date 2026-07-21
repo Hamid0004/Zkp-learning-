@@ -116,6 +116,7 @@ ZKAuth v1.0 Beta launches an Android-first zero-knowledge identity solution with
 ## Roadmap
 
 - v1.0 Beta - current release
+- Privacy-preserving on-device liveness ML + ZK attestation (hybrid commit+threshold design)
 - v1.1 - OAuth / "Login with ZKAuth" button + JS SDK
 - v2.0 - Tier 2 National ID + iOS support
 
