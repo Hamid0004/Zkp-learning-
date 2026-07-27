@@ -1,8 +1,10 @@
-# 🚀 CONTRIBUTION.md — ZKAuth Identity Contribution Guide
+# 🚀 CONTRIBUTING.md — ZKAuth Identity Contribution Guide
 
 > **Build the future of privacy-preserving identity with us.**
 >
 > This document explains how ZKAuth works, where you can contribute, and most importantly—**what YOU envision for this project.**
+
+> **Status:** Currently solo-maintained (final year project, actively developed). Looking for the first outside contributors — if that's you, welcome!
 
 ---
 
@@ -36,11 +38,12 @@
 - **Multi-Tier:** Government passport (Tier 1), National ID (Tier 2 coming), device biometric (Tier 3)
 
 ### Key Stats
-- ✅ **23x faster** verification than industry standard (Groth16)
-- ✅ **90% lighter** memory usage (14 MB vs 150 MB)
+- ✅ **~19ms** proof verification, **~14 MB** memory footprint (internal benchmarks — see [OFFLINE_IDENTITY.md](OFFLINE_IDENTITY.md))
 - ✅ **100% offline** cross-device verification via QR
-- ✅ **Post-quantum friendly** (FRI-based, not elliptic curve)
-- ✅ **GDPR-compliant** (minimal data retention)
+- ✅ **Hash-based cryptography, not elliptic-curve pairings** (FRI-based via Plonky2) — avoids the assumptions Shor's algorithm is known to break, a promising property for post-quantum resistance, though not formally certified
+- ✅ Designed with data minimization in mind (no raw personal data retained) — not a formal compliance certification
+
+> Note: numbers above are our own internal benchmarks on test hardware, not an independently verified comparison against Groth16 or a legal compliance audit. Treat as directional, not certified.
 
 ---
 
@@ -244,9 +247,9 @@ We're not trying to predict the future—we want to hear **your ideas** about wh
 2. Use label `[Enhancement]` or `[RFC]` (Request for Comments)
 3. Follow same format as above
 
-**Option 3: Email the Maintainer**
-- Contact: [@hamidiqbal369](https://github.com/hamidiqbal369)
-- Subject: "ZKAuth Idea: [Your Idea]"
+**Option 3: Reach Out Directly**
+- X/Twitter: [@hamidiqbal369](https://x.com/hamidiqbal369)
+- Subject line if messaging: "ZKAuth Idea: [Your Idea]"
 
 ### Example Ideas We'd Love to Hear
 
