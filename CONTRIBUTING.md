@@ -450,11 +450,11 @@ Fixes #123
 
 ## License & Ownership
 
-This project is **MIT Licensed** — anyone can use, modify, fork.
+This project is **dual-licensed under MIT or Apache-2.0, at your option.**
 
 **Your contributions** become part of the project. We ask that you:
 - Confirm your code is your own or properly licensed
-- Allow your contributions to be used under MIT license
+- Allow your contributions to be used under dual MIT/Apache-2.0 licensing
 - Don't include personal data in commits
 
 ---
