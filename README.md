@@ -59,4 +59,4 @@ If you find this useful, consider giving it a star — it helps a lot and keeps 
 ---
 
 ## License
-This project is open-source under the MIT License.
+This project is dual-licensed under MIT or Apache-2.0, at your option.
