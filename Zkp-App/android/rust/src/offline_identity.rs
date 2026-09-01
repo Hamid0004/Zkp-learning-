@@ -32,8 +32,11 @@ use serde_json::json;
 use hex;
 
 // Android Logging
+#[cfg(target_os = "android")]
 use android_logger::Config;
-use log::{info, LevelFilter};          // ← `error` removed (unused)
+use log::info;
+#[cfg(target_os = "android")]
+use log::LevelFilter;
 
 // Cryptography
 use sha2::{Sha256, Digest};
@@ -55,6 +58,7 @@ const MAX_TIMESTAMP_DRIFT_SECS: i64 = 30;
 const MIN_NONCE_VALUE: u64 = 1_000_000_000;
 
 fn init_logger() {
+    #[cfg(target_os = "android")]
     let _ = android_logger::init_once(
         Config::default()
             .with_max_level(LevelFilter::Info)

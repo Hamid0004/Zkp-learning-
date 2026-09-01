@@ -1,14 +1,18 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JValue, JByteArray}; // JString removed
 use jni::sys::{jobject, jbyteArray};                     // jstring removed
+#[cfg(target_os = "android")]
 use android_logger::Config;
-use log::{LevelFilter, info, error, warn};
+use log::{info, error, warn};
+#[cfg(target_os = "android")]
+use log::LevelFilter;
 use std::sync::Once;
 
 static LOGGER_INIT: Once = Once::new();
 
 fn init_logger() {
     LOGGER_INIT.call_once(|| {
+        #[cfg(target_os = "android")]
         android_logger::init_once(
             Config::default()
                 .with_max_level(LevelFilter::Debug)
