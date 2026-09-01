@@ -590,9 +590,7 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
             return Err(anyhow!("expected_nationality must be 1..=7 bytes"));
         }
         if data.nationality != expected {
-            return Err(anyhow!(
-                "nationality mismatch: holder={}, expected={}", data.nationality, expected
-            ));
+            return Err(anyhow!("nationality mismatch"));
         }
     }
     // ── [C1] end ───────────────────────────────────────────────────────────────
