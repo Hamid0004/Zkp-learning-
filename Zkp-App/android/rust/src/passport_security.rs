@@ -262,7 +262,7 @@ fn build_universal_circuit() -> UniversalCircuit {
         valid_until_t, expected_nat_t, hw_binding_t, revocation_id_t,
         leaf_t, sibling_1_t, sibling_2_t, bit_0_t, bit_1_t, age_t,
         nat_claim_indicator_t: nat_indicator_bool,
-        nat_value_t, nat_salt_t,   // ← [C1] YE LINE ADD KAREIN
+        nat_value_t, nat_salt_t,
     }
 }
 

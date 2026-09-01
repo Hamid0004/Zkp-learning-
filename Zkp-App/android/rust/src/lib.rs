@@ -13,7 +13,7 @@ static LOGGER_INIT: Once = Once::new();
 fn init_logger() {
     LOGGER_INIT.call_once(|| {
         #[cfg(target_os = "android")]
-        android_logger::init_once(
+        let _ = android_logger::init_once(
             Config::default()
                 .with_max_level(LevelFilter::Debug)
                 .with_tag("RustZKP_Main"),
