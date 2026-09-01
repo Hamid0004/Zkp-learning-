@@ -59,8 +59,11 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
+#[cfg(target_os = "android")]
 use android_logger::Config;
-use log::{info, error, LevelFilter};
+use log::{info, error};
+#[cfg(target_os = "android")]
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use hex;
@@ -97,6 +100,7 @@ const ACCOUNT_AGE_THRESHOLD_SECS: u64 = 30 * 24 * 60 * 60;
 static LOGGER_INIT: std::sync::Once = std::sync::Once::new();
 fn init_logger() {
     LOGGER_INIT.call_once(|| {
+        #[cfg(target_os = "android")]
         let _ = android_logger::init_once(
             Config::default()
                 .with_max_level(LevelFilter::Debug)
