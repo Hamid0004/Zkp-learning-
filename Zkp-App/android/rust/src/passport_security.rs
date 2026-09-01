@@ -605,7 +605,6 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
         .map_err(|e| anyhow!("Invalid sod_hex: {}", e))?;
     let dg1_hash  = sha256_hash(&dg1_bytes);
 
-    // ... baqi sab kuch BILKUL unchanged ...
     
     let integrity_ok = verify_sod_integrity(&sod_bytes, &dg1_hash);
     let signature_msg = match &data.ds_cert_hex {
