@@ -56,8 +56,11 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::jstring;
+use log::{info, error};
+#[cfg(target_os = "android")]
 use android_logger::Config;
-use log::{info, error, LevelFilter};
+#[cfg(target_os = "android")]
+use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use rsa::{RsaPublicKey, Pkcs1v15Sign};
@@ -110,6 +113,8 @@ struct UniversalCircuit {
     bit_1_t:               BoolTarget,
     age_t:                 Target,
     nat_claim_indicator_t: BoolTarget,       // [FIXED v5.1] BoolTarget — cannot be bypassed
+    nat_value_t:           Target,   // [C1] private nationality preimage
+    nat_salt_t:            HashOutTarget, // [C1] private salt
 }
 
 struct RecursiveCircuit {
@@ -197,32 +202,46 @@ fn build_universal_circuit() -> UniversalCircuit {
     // ── Constraint 3: Proof Expiry ────────────────────────────────────────────
     b.range_check(valid_until_t, 32);
 
-    // ── Constraint 4: Nationality In-Circuit (FIXED — element-wise) ──────────
-    //
-    // BUG IN PREVIOUS APPROACH:
-    //   nat_diff_sum = sum of (leaf[i] - expected[i])
-    //   This is BYPASSABLE: if diffs cancel out (e.g. +5 and -5), sum=0
-    //   even though leaf != expected. Also indicator was private — prover
-    //   could set it to 0 for nationality claims to skip the check.
-    //
-    // FIX: Use connect_hashes directly for nationality claim.
-    //   nat_claim_indicator is now a BoolTarget (enforced 0 or 1 in circuit).
-    //   For nat claim (indicator=1): each element of leaf must equal expected.
-    //   For other claims (indicator=0): constraint trivially passes.
-    //
-    // Implementation using arithmetic trick:
-    //   For each element i:
-    //     diff_i = leaf[i] - expected_nat[i]
-    //     enforced = diff_i * nat_claim_indicator   (= 0 for non-nat, = diff_i for nat)
-    //     connect(enforced, 0)  →  if nat claim: diff_i == 0 → leaf[i] == expected[i]
-    //
-    // Because indicator is BoolTarget: prover CANNOT set it to 0 for nat claims.
-    // nat_claim_indicator is set in witness: 1 for Nationality, 0 for others.
-    let nat_indicator_bool = b.add_virtual_bool_target_safe(); // BoolTarget — enforced 0 or 1
+        // ── Constraint 4: Nationality In-Circuit (C1 — FIXED) ────────────────────
+    // (a) private preimage, (b) gated leaf opening, (c) gated expected match,
+    // (d) indicator DERIVED from claim_type. E0499-safe: no nested b. calls.
+    let nat_value_t = b.add_virtual_target();   // [C1] private nationality value
+    let nat_salt_t  = b.add_virtual_hash();     // [C1] private salt
+
+    // constants — hoisted ONCE (E0499 fix)
+    let one  = b.one();
+    let two  = b.constant(F::from_canonical_u64(2));
     let zero = b.zero();
+
+    // claim_type validity: ct·(ct−1)·(ct−2) == 0  →  ct ∈ {0,1,2}
+    let ct_m1   = b.sub(claim_type_t, one);
+    let ct_m2   = b.sub(claim_type_t, two);
+    let p1      = b.mul(claim_type_t, ct_m1);
+    let ct_prod = b.mul(p1, ct_m2);
+    b.connect(ct_prod, zero);
+
+    // indicator = ct·(2−ct):  0→0 (is_adult) · 1→1 (nationality) · 2→0 (is_human)
+    let nat_indicator_bool = b.add_virtual_bool_target_safe();
+    let two_minus_ct = b.sub(two, claim_type_t);
+    let ind_computed = b.mul(claim_type_t, two_minus_ct);
+    b.connect(ind_computed, nat_indicator_bool.target);
+    let ind = nat_indicator_bool.target;
+
+    // (1) Leaf opening — Poseidon(value ‖ salt) == leaf_t  (gated by ind)
+    let mut preimage = vec![nat_value_t];
+    preimage.extend_from_slice(&nat_salt_t.elements);
+    let computed_leaf = b.hash_n_to_hash_no_pad::<PoseidonHash>(preimage);
     for i in 0..4 {
-        let diff      = b.sub(leaf_t.elements[i], expected_nat_t.elements[i]);
-        let enforced  = b.mul(diff, nat_indicator_bool.target);
+        let diff     = b.sub(computed_leaf.elements[i], leaf_t.elements[i]);
+        let enforced = b.mul(diff, ind);
+        b.connect(enforced, zero);
+    }
+
+    // (2) Expected match — Poseidon(value) == expected_nat_t  (gated by ind)
+    let computed_expected = b.hash_n_to_hash_no_pad::<PoseidonHash>(vec![nat_value_t]);
+    for i in 0..4 {
+        let diff     = b.sub(computed_expected.elements[i], expected_nat_t.elements[i]);
+        let enforced = b.mul(diff, ind);
         b.connect(enforced, zero);
     }
 
@@ -242,7 +261,8 @@ fn build_universal_circuit() -> UniversalCircuit {
         data, root_t, nullifier_t, claim_type_t, dg1_anchor_t,
         valid_until_t, expected_nat_t, hw_binding_t, revocation_id_t,
         leaf_t, sibling_1_t, sibling_2_t, bit_0_t, bit_1_t, age_t,
-        nat_claim_indicator_t: nat_indicator_bool, // [FIXED v5.1] BoolTarget
+        nat_claim_indicator_t: nat_indicator_bool,
+        nat_value_t, nat_salt_t,   // ← [C1] YE LINE ADD KAREIN
     }
 }
 
@@ -491,6 +511,8 @@ fn generate_zk_proof(
             if age < 18 { return Err(anyhow!("Age < 18")); }
             pw.set_target(inner_c.age_t, F::from_canonical_u64(age as u64));
             pw.set_bool_target(inner_c.nat_claim_indicator_t, false); // [FIXED v5.1]
+            pw.set_target(inner_c.nat_value_t, F::ZERO);            // [C1] unconstrained
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);  // [C1]
         }
         ClaimType::Nationality => {
             pw.set_hash_target(inner_c.leaf_t,      tree.leaves[3].hash);
@@ -500,6 +522,9 @@ fn generate_zk_proof(
             pw.set_bool_target(inner_c.bit_1_t, true);
             pw.set_target(inner_c.age_t, F::from_canonical_u64(18));
             pw.set_bool_target(inner_c.nat_claim_indicator_t, true); // [FIXED v5.1]
+            let nat_leaf = &tree.leaves[3];
+            pw.set_target(inner_c.nat_value_t, nat_leaf.value[0]);  // [C1] open leaf in-circuit
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut { elements: nat_leaf.salt });
         }
         ClaimType::IsHuman => {
             pw.set_hash_target(inner_c.leaf_t,      tree.leaves[0].hash);
@@ -509,6 +534,8 @@ fn generate_zk_proof(
             pw.set_bool_target(inner_c.bit_1_t, false);
             pw.set_target(inner_c.age_t, F::from_canonical_u64(18));
             pw.set_bool_target(inner_c.nat_claim_indicator_t, false); // [FIXED v5.1]
+            pw.set_target(inner_c.nat_value_t, F::ZERO);            // [C1] unconstrained
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);  // [C1]
         }
     }
 
@@ -550,6 +577,26 @@ fn generate_zk_proof(
 pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
     let mode_str   = format!("{:?}", data.mode);
     let claim_type = ClaimType::from_str(data.claim_type.as_deref().unwrap_or("is_adult"));
+
+    // ── [C1] Nationality input validation — fail-fast BEFORE any crypto work ──
+    if claim_type == ClaimType::Nationality {
+        let nat = data.nationality.as_bytes();
+        if nat.is_empty() || nat.len() > 7 {
+            return Err(anyhow!("nationality must be 1..=7 bytes"));
+        }
+        let expected = data.expected_nationality.as_deref()
+            .ok_or_else(|| anyhow!("nationality claim requires expected_nationality"))?;
+        if expected.as_bytes().is_empty() || expected.len() > 7 {
+            return Err(anyhow!("expected_nationality must be 1..=7 bytes"));
+        }
+        if data.nationality != expected {
+            return Err(anyhow!(
+                "nationality mismatch: holder={}, expected={}", data.nationality, expected
+            ));
+        }
+    }
+    // ── [C1] end ───────────────────────────────────────────────────────────────
+
     let domain     = data.verifier_domain.as_deref().unwrap_or("unknown.domain");
 
     let dg1_bytes = hex::decode(&data.dg1_hex)
@@ -557,6 +604,8 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
     let sod_bytes = hex::decode(&data.sod_hex)
         .map_err(|e| anyhow!("Invalid sod_hex: {}", e))?;
     let dg1_hash  = sha256_hash(&dg1_bytes);
+
+    // ... baqi sab kuch BILKUL unchanged ...
     
     let integrity_ok = verify_sod_integrity(&sod_bytes, &dg1_hash);
     let signature_msg = match &data.ds_cert_hex {
@@ -618,7 +667,16 @@ fn get_simulated_passport(claim_type: Option<String>, domain: Option<String>) ->
 }
 
 // JNI
-fn init_logger() { let _ = android_logger::init_once(Config::default().with_max_level(LevelFilter::Info).with_tag("RustZKP")); }
+fn init_logger() {
+    #[cfg(target_os = "android")]
+    {
+        let _ = android_logger::init_once(
+            Config::default()
+                .with_max_level(LevelFilter::Info)
+                .with_tag("RustZKP"),
+        );
+    }
+}
 #[no_mangle] pub extern "system" fn Java_com_example_zkpapp_SecurityGate_warmupCircuit(_env: JNIEnv, _class: JClass) { init_logger(); let _ = get_circuits(); }
 #[no_mangle] pub extern "system" fn Java_com_example_zkpapp_SecurityGate_generateProof(mut env: JNIEnv, _c: JClass, p: JString) -> jstring { init_logger(); handle_req(&mut env, Some(p), false, None, None) }
 #[no_mangle] pub extern "system" fn Java_com_example_zkpapp_SecurityGate_generateSimulatedProof(mut env: JNIEnv, _c: JClass, _u: JString) -> jstring { init_logger(); handle_req(&mut env, None, true, None, None) }
@@ -660,4 +718,31 @@ fn handle_req(env: &mut JNIEnv, json: Option<JString>, sim: bool, claim: Option<
         error_msg: e.to_string(), merkle_root: "".into(), trust_level: "NONE".into(), nullifier: "".into(), zk_output: None,
     });
     env.new_string(serde_json::to_string(&res).unwrap()).unwrap().into_raw()
+}
+#[cfg(test)]
+mod c1_tests {
+    use super::*;
+
+    #[test]
+    fn nationality_matching_claim_generates_proof() {
+        let d = get_simulated_passport(Some("nationality".into()), Some("test.domain".into()));
+        let res = prove_passport(d).expect("no hard error");
+        assert_eq!(res.zk_proof_status, "GENERATED"); // C1 regression: used to always fail
+        assert!(res.success);
+    }
+
+    #[test]
+    fn nationality_mismatch_fails_fast() {
+        let mut d = get_simulated_passport(Some("nationality".into()), Some("test.domain".into()));
+        d.expected_nationality = Some("USA".into());
+        assert!(prove_passport(d).is_err());
+    }
+
+    #[test]
+    fn non_nat_claims_unaffected() {
+        let mut d = get_simulated_passport(Some("is_adult".into()), Some("test.domain".into()));
+        d.nationality = "PAK".into();
+        let res = prove_passport(d).expect("no hard error");
+        assert_eq!(res.zk_proof_status, "GENERATED");
+    }
 }
