@@ -115,6 +115,9 @@ struct UniversalCircuit {
     nat_claim_indicator_t: BoolTarget,       // [FIXED v5.1] BoolTarget — cannot be bypassed
     nat_value_t:           Target,   // [C1] private nationality preimage
     nat_salt_t:            HashOutTarget, // [C1] private salt
+    age_value_t:           Target,        // [C2] private age preimage
+    age_salt_t:            HashOutTarget, // [C2] private salt
+    age_indicator_t:       BoolTarget,    // [C2] age-claim indicator
 }
 
 struct RecursiveCircuit {
@@ -244,6 +247,39 @@ fn build_universal_circuit() -> UniversalCircuit {
         let enforced = b.mul(diff, ind);
         b.connect(enforced, zero);
     }
+    // ── Constraint 2b: Age value binding (C2) ─────────────────────────────────
+    //
+    // age_t was a free witness value — provable independent of the committed
+    // leaf → forged age proofs. Fix (same pattern as C1):
+    //   (1) open leaf:  Poseidon(age_value ‖ age_salt) == leaf_t   (gated)
+    //   (2) bind value: age_value == age_t                          (gated)
+    // Age indicator: 1 iff ct == 0. With ct ∈ {0,1,2} enforced:
+    //   (ct−1)(ct−2) = 2 at ct=0, else 0  →  connect((ct−1)(ct−2), 2·ind)
+    let age_value_t = b.add_virtual_target();   // [C2] private age preimage
+    let age_salt_t  = b.add_virtual_hash();     // [C2] private salt
+
+    let age_indicator_bool = b.add_virtual_bool_target_safe();
+    let ct_m1b  = b.sub(claim_type_t, one);
+    let ct_m2b  = b.sub(claim_type_t, two);
+    let p_age   = b.mul(ct_m1b, ct_m2b);
+    let two_age = b.mul(two, age_indicator_bool.target);
+    b.connect(p_age, two_age);
+    let aind = age_indicator_bool.target;
+
+    // (1) Leaf opening — binds opened value to committed age leaf (gated)
+    let mut age_preimage = vec![age_value_t];
+    age_preimage.extend_from_slice(&age_salt_t.elements);
+    let computed_age_leaf = b.hash_n_to_hash_no_pad::<PoseidonHash>(age_preimage);
+    for i in 0..4 {
+        let diff     = b.sub(computed_age_leaf.elements[i], leaf_t.elements[i]);
+        let enforced = b.mul(diff, aind);
+        b.connect(enforced, zero);
+    }
+
+    // (2) Value binding — decoded attribute == age_t (gated)
+    let age_diff = b.sub(age_value_t, age_t);
+    let age_enf  = b.mul(age_diff, aind);
+    b.connect(age_enf, zero);
 
     // ── Register Public Inputs ────────────────────────────────────────────────
     b.register_public_inputs(&root_t.elements);
@@ -263,6 +299,8 @@ fn build_universal_circuit() -> UniversalCircuit {
         leaf_t, sibling_1_t, sibling_2_t, bit_0_t, bit_1_t, age_t,
         nat_claim_indicator_t: nat_indicator_bool,
         nat_value_t, nat_salt_t,
+        age_value_t, age_salt_t,
+        age_indicator_t: age_indicator_bool,   // [C2]
     }
 }
 
@@ -509,10 +547,14 @@ fn generate_zk_proof(
             pw.set_bool_target(inner_c.bit_1_t, true);
             let age = calculate_age(&data.date_of_birth);
             if age < 18 { return Err(anyhow!("Age < 18")); }
-            pw.set_target(inner_c.age_t, F::from_canonical_u64(age as u64));
-            pw.set_bool_target(inner_c.nat_claim_indicator_t, false); // [FIXED v5.1]
-            pw.set_target(inner_c.nat_value_t, F::ZERO);            // [C1] unconstrained
-            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);  // [C1]
+            let age_leaf = &tree.leaves[2];
+            pw.set_target(inner_c.age_t, age_leaf.value[0]);                             // [C2] from committed leaf
+            pw.set_target(inner_c.age_value_t, age_leaf.value[0]);                       // [C2]
+            pw.set_hash_target(inner_c.age_salt_t, HashOut { elements: age_leaf.salt }); // [C2]
+            pw.set_bool_target(inner_c.age_indicator_t, true);                           // [C2]
+            pw.set_target(inner_c.nat_value_t, F::ZERO);                                 // [C1]
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);                       // [C1]
+            pw.set_bool_target(inner_c.nat_claim_indicator_t, false);
         }
         ClaimType::Nationality => {
             pw.set_hash_target(inner_c.leaf_t,      tree.leaves[3].hash);
@@ -521,10 +563,13 @@ fn generate_zk_proof(
             pw.set_bool_target(inner_c.bit_0_t, true);
             pw.set_bool_target(inner_c.bit_1_t, true);
             pw.set_target(inner_c.age_t, F::from_canonical_u64(18));
-            pw.set_bool_target(inner_c.nat_claim_indicator_t, true); // [FIXED v5.1]
+            pw.set_target(inner_c.age_value_t, F::ZERO);                                 // [C2] unconstrained (gated)
+            pw.set_hash_target(inner_c.age_salt_t, HashOut::ZERO);                       // [C2]
+            pw.set_bool_target(inner_c.age_indicator_t, false);                          // [C2]
             let nat_leaf = &tree.leaves[3];
-            pw.set_target(inner_c.nat_value_t, nat_leaf.value[0]);  // [C1] open leaf in-circuit
-            pw.set_hash_target(inner_c.nat_salt_t, HashOut { elements: nat_leaf.salt });
+            pw.set_target(inner_c.nat_value_t, nat_leaf.value[0]);                       // [C1]
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut { elements: nat_leaf.salt }); // [C1]
+            pw.set_bool_target(inner_c.nat_claim_indicator_t, true);
         }
         ClaimType::IsHuman => {
             pw.set_hash_target(inner_c.leaf_t,      tree.leaves[0].hash);
@@ -533,9 +578,12 @@ fn generate_zk_proof(
             pw.set_bool_target(inner_c.bit_0_t, false);
             pw.set_bool_target(inner_c.bit_1_t, false);
             pw.set_target(inner_c.age_t, F::from_canonical_u64(18));
-            pw.set_bool_target(inner_c.nat_claim_indicator_t, false); // [FIXED v5.1]
-            pw.set_target(inner_c.nat_value_t, F::ZERO);            // [C1] unconstrained
-            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);  // [C1]
+            pw.set_target(inner_c.age_value_t, F::ZERO);                                 // [C2] unconstrained (gated)
+            pw.set_hash_target(inner_c.age_salt_t, HashOut::ZERO);                       // [C2]
+            pw.set_bool_target(inner_c.age_indicator_t, false);                          // [C2]
+            pw.set_target(inner_c.nat_value_t, F::ZERO);                                 // [C1]
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);                       // [C1]
+            pw.set_bool_target(inner_c.nat_claim_indicator_t, false);
         }
     }
 
@@ -741,5 +789,74 @@ mod c1_tests {
         d.nationality = "PAK".into();
         let res = prove_passport(d).expect("no hard error");
         assert_eq!(res.zk_proof_status, "GENERATED");
+    }
+    #[test]
+    fn forged_age_leaf_value_rejected() {
+        // C2 negative test: age_value_t jo leaf ke actual value se match na kare
+        // → Poseidon(value‖salt) != leaf_t → prove() must return Err.
+        //
+        // Kyunke generate_zk_proof() by construction consistent witness banata
+        // hai (C2 ka design goal hi yehi hai), hum negative case ke liye prove()
+        // ko directly call kerte hain manually-built witness ke saath.
+        let data = get_simulated_passport(Some("is_adult".into()), Some("test.domain".into()));
+        let device_rng = sha256_hash(data.document_number.as_bytes());
+        let tree = build_merkle_tree(&data, &device_rng);
+
+        let circuits = get_circuits();
+        let inner_c = &circuits.inner;
+
+        let mk_witness = |age_claim: u64| -> PartialWitness<F> {
+            let mut pw = PartialWitness::new();
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+            pw.set_hash_target(inner_c.root_t, tree.root);
+            pw.set_hash_target(inner_c.nullifier_t, HashOut::ZERO);
+            pw.set_target(inner_c.claim_type_t, F::from_canonical_u64(0));
+            pw.set_hash_target(inner_c.dg1_anchor_t, HashOut::ZERO);
+            pw.set_target(inner_c.valid_until_t, F::from_canonical_u64(now + PROOF_TTL_SECS));
+            pw.set_hash_target(inner_c.expected_nat_t, HashOut::ZERO);
+            pw.set_hash_target(inner_c.hw_binding_t, HashOut::ZERO);
+            pw.set_hash_target(inner_c.revocation_id_t, HashOut::ZERO);
+
+            pw.set_hash_target(inner_c.leaf_t, tree.leaves[2].hash);
+            pw.set_hash_target(inner_c.sibling_1_t, tree.leaves[3].hash);
+            pw.set_hash_target(inner_c.sibling_2_t, tree.node_l);
+            pw.set_bool_target(inner_c.bit_0_t, false);
+            pw.set_bool_target(inner_c.bit_1_t, true);
+
+            pw.set_target(inner_c.age_t, F::from_canonical_u64(age_claim));
+            pw.set_target(inner_c.age_value_t, F::from_canonical_u64(age_claim));
+            pw.set_hash_target(inner_c.age_salt_t, HashOut { elements: tree.leaves[2].salt });
+            pw.set_bool_target(inner_c.age_indicator_t, true);
+            pw.set_target(inner_c.nat_value_t, F::ZERO);
+            pw.set_hash_target(inner_c.nat_salt_t, HashOut::ZERO);
+            pw.set_bool_target(inner_c.nat_claim_indicator_t, false);
+            pw
+        };
+
+        // Consistent claim (real age) → prove OK
+        let real_age = tree.leaves[2].value[0].to_canonical_u64();
+        assert!(
+            inner_c.data.prove(mk_witness(real_age)).is_ok(),
+            "consistent witness must prove"
+        );
+
+        // Forged claim (age=99 ≠ committed) → REJECTED.
+        //
+        // plonky2 note: connect() copy-generators run during witness generation;
+        // an inconsistent witness PANICS before the constraint check — so both
+        // Err and panic count as rejection. What matters: no valid proof.
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {})); // silence the expected panic
+        let forged_outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            inner_c.data.prove(mk_witness(99))
+        }));
+        std::panic::set_hook(prev_hook);
+
+        let rejected = match forged_outcome {
+            Ok(proof_res) => proof_res.is_err(),
+            Err(_) => true, // witness-generation panic = rejection
+        };
+        assert!(rejected, "forged age value must be rejected by C2 binding");
     }
 }
