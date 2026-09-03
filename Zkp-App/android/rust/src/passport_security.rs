@@ -90,8 +90,8 @@ type F = <C as GenericConfig<2>>::F;
 const D: usize = 2;
 
 const PROOF_TTL_SECS: u64 = 300; // 5 minutes validity
-const PROOF_VERSION: &str = "5.0";
 
+const PROOF_VERSION: &str = "6.0";
 // ─────────────────────────────────────────────────────────────────────────────
 // STATIC CIRCUIT CACHE (Inner & Outer Circuits)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ static CIRCUITS: OnceLock<EngineCircuits> = OnceLock::new();
 fn get_circuits() -> &'static EngineCircuits {
     CIRCUITS.get_or_init(|| {
         let t = Instant::now();
-        info!("⚡ [ONCE] Building v5.0 ZK Circuits (Inner + Recursive)...");
+        info!("⚡ [ONCE] Building v6.0 ZK Circuits (Inner + Recursive)...");
         let inner = build_universal_circuit();
         let outer = build_recursive_circuit(&inner);
         info!("✅ [DONE] Circuits built in {}ms — cached permanently", t.elapsed().as_millis());
@@ -409,8 +409,11 @@ pub struct PassportProofResult {
 // CORE LOGIC & CRYPTO
 // ─────────────────────────────────────────────────────────────────────────────
 
+// [C3] 7-byte chunks: values fit in 56 bits < Goldilocks prime p = 2^64 − 2^32 + 1,
+// so every element is canonical by construction. The old 8-byte chunks could
+// exceed p → silent non-canonical aliasing in release builds.
 fn bytes_to_field_elements(bytes: &[u8]) -> Vec<F> {
-    bytes.chunks(8).map(|c| {
+    bytes.chunks(7).map(|c| {
         let mut a = [0u8; 8];
         a[..c.len()].copy_from_slice(c);
         F::from_canonical_u64(u64::from_le_bytes(a))
@@ -444,6 +447,21 @@ fn generate_domain_nullifier(dg1_hash: &[u8], domain: &str) -> HashOut<F> {
     PoseidonHash::hash_no_pad(&inputs)
 }
 
+// [M4] Howard Hinnant's civil_from_days — exact Gregorian date from days
+// since epoch. Replaces average-year arithmetic (±1-day drift).
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;
+    let y   = yoe as i64 + era * 400;
+    let doy = doe - (365*yoe + yoe/4 - yoe/100);
+    let mp  = (5*doy + 2) / 153;
+    let d   = (doy - (153*mp + 2)/5 + 1) as u32;
+    let m   = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
 fn calculate_age(dob: &str) -> u32 {
     if dob.len() < 6 { return 0; }
     let yy: u32 = dob[0..2].parse().unwrap_or(0);
@@ -451,14 +469,11 @@ fn calculate_age(dob: &str) -> u32 {
     let dd: u32 = dob[4..6].parse().unwrap_or(0);
     let birth_year = if yy <= 30 { 2000 + yy } else { 1900 + yy };
 
-    let now           = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-    let current_year  = (1970 + now / 31_556_926) as u32;
-    let rem           = now % 31_556_926;
-    let current_month = 1 + (rem / 2_629_743) as u32;
-    let current_day   = 1 + ((rem % 2_629_743) / 86_400) as u32;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let (cy, cm, cd) = civil_from_days((now / 86_400) as i64);
 
-    let mut age = current_year.saturating_sub(birth_year);
-    if mm > current_month || (mm == current_month && dd > current_day) { age = age.saturating_sub(1); }
+    let mut age = cy.saturating_sub(birth_year as i64) as u32;
+    if mm > cm || (mm == cm && dd > cd) { age = age.saturating_sub(1); }
     age
 }
 
@@ -598,7 +613,7 @@ fn generate_zk_proof(
     outer_c.data.verify(compressed_proof.clone()).map_err(|e| anyhow!("Recursive verify failed: {}", e))?;
 
     let ms = start.elapsed().as_millis() as u64;
-    info!("✅ ZK proof v5.0 (Recursive): {}ms", ms);
+    info!("✅ ZK proof v6.0 (Recursive): {}ms", ms);
 
     let output = ZkProofOutput {
         version:          PROOF_VERSION.to_string(),
@@ -858,5 +873,28 @@ mod c1_tests {
             Err(_) => true, // witness-generation panic = rejection
         };
         assert!(rejected, "forged age value must be rejected by C2 binding");
+    }
+    #[test]
+    fn field_encoding_canonical_and_roundtrip() {
+        // C3: 56-bit values always < p → canonical; decode restores input
+        let data: Vec<u8> = (0..=255u8).collect();
+        let els = bytes_to_field_elements(&data);
+        assert_eq!(els.len(), (data.len() + 6) / 7);
+        for e in &els {
+            assert!(e.to_canonical_u64() < (1u64 << 56), "non-canonical element");
+        }
+        let mut out = Vec::new();
+        for e in &els {
+            out.extend_from_slice(&e.to_canonical_u64().to_le_bytes()[..7]);
+        }
+        out.truncate(data.len());
+        assert_eq!(out, data, "roundtrip mismatch");
+    }
+
+    #[test]
+    fn civil_age_known_dates() {
+        // M4: exact civil-calendar math (epoch + leap-year window)
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(19_723), (2024, 1, 1));
     }
 }
