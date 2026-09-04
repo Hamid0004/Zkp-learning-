@@ -63,8 +63,6 @@ use android_logger::Config;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use rsa::{RsaPublicKey, Pkcs1v15Sign};
-use rsa::pkcs8::DecodePublicKey;
 use hex;
 use anyhow::{anyhow, Result};
 use std::time::{SystemTime, UNIX_EPOCH, Instant};
@@ -676,11 +674,21 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
         }
         Err(e) => { error!("SOD parse failed: {}", e); false }
     };
-    let signature_msg = match &data.ds_cert_hex {
-        Some(cert) => match verify_ds_signature(&sod_bytes, &dg1_hash, cert) {
-            Ok(true) => "VERIFIED", Ok(false) => "FAILED", Err(_) => "VERIFY_ERROR"
-        },
-        None => if dg1_hash.len() == 32 { "SIMULATED" } else { "FAILED" },
+    // [C4b] DS signature verification against the CMS SignerInfo.
+    // Tier: VERIFIED (real cert+sig) / SIMULATED (placeholder sig, no cert) / FAILED
+    let signature_msg = match sod::parse_sod(&sod_bytes) {
+        Ok(info) => {
+            let is_placeholder = info.signer_info_sig.iter().all(|b| *b == 0);
+            if is_placeholder && info.ds_cert_der.is_empty() {
+                "SIMULATED"   // simulated pipeline — placeholder signature, no cert
+            } else {
+                match sod::verify_ds_signature(&info) {
+                    Ok(()) => "VERIFIED",
+                    Err(e) => { error!("DS verify: {}", e); "FAILED" }
+                }
+            }
+        }
+        Err(e) => { error!("SOD parse (sig): {}", e); "FAILED" }
     };
 
     let device_rng = match data.device_rng_hex.as_deref() {
@@ -715,11 +723,6 @@ fn sha256_hash(data: &[u8]) -> Vec<u8> { let mut h = Sha256::new(); h.update(dat
     for i in 0..sod.len().saturating_sub(dg1.len() + 2) { if sod[i] == 0x04 && sod[i+1] == dg1.len() as u8 && &sod[i+2..i+2+dg1.len()] == dg1 { return true; } }
     sod.windows(dg1.len()).any(|w| w == dg1)
 }*/
-fn verify_ds_signature(sod: &[u8], hash: &[u8], cert_hex: &str) -> Result<bool> {
-    let key = RsaPublicKey::from_public_key_der(&hex::decode(cert_hex)?)?;
-    if sod.len() < 256 { return Err(anyhow!("SOD too small")); }
-    Ok(key.verify(Pkcs1v15Sign::new::<sha2::Sha256>(), hash, &sod[sod.len()-256..]).is_ok())
-}
 fn get_simulated_passport(claim_type: Option<String>, domain: Option<String>) -> PassportData {
     let dg1 = b"P<PAKARSALAN<<KHAN<<<<<<<<<<<<<<<<<<<<<<<<<<AB1234567PAK9001011M2501010<<<<<<<<<<<<4";
     let hash = sha256_hash(dg1);
@@ -964,6 +967,56 @@ mod sod {
     }
     fn boct(v: &[u8]) -> Vec<u8> { btlv(0x04, v) }
 
+    /// [C4b] Verify the Document Signer signature over the SOd.
+    /// Returns Ok(()) if signature is cryptographically valid.
+    pub fn verify_ds_signature(info: &SodInfo) -> Result<()> {
+        use rsa::{RsaPublicKey, Pkcs1v15Sign};
+        use rsa::pkcs8::DecodePublicKey;
+        use sha2::{Sha256, Digest};
+
+        if info.ds_cert_der.is_empty() {
+            return Err(anyhow!("no DS certificate in SOD"));
+        }
+        if info.signer_info_sig.is_empty() {
+            return Err(anyhow!("no SignerInfo signature in SOD"));
+        }
+
+        // cert outer SEQUENCE: tbsCertificate, signatureAlgorithm, signatureValue
+        let (t, s, _e) = tlv(&info.ds_cert_der, 0)?;
+        if t != 0x30 { return Err(anyhow!("cert: SEQUENCE expected")); }
+        let (t, ts, te) = tlv(&info.ds_cert_der, s)?;
+        if t != 0x30 { return Err(anyhow!("cert: TBSCertificate expected")); }
+        let tbs = children(&info.ds_cert_der, ts, te)?;
+
+        // TBS walk: [0]version?, serial, sigAlg, issuer, validity, subject, SPKI
+        let mut idx = 0;
+        if !tbs.is_empty() && tbs[0].0 == 0xA0 { idx = 1; }
+        idx += 2;
+        let spki_idx = idx + 3;
+        if spki_idx >= tbs.len() { return Err(anyhow!("cert: TBS too short")); }
+        let (t, ss, se2) = tbs[spki_idx];
+        if t != 0x30 { return Err(anyhow!("cert: SPKI expected")); }
+        let spki_der = info.ds_cert_der[ss..se2].to_vec();
+
+        let key = RsaPublicKey::from_public_key_der(&spki_der)
+            .map_err(|e| anyhow!("SPKI parse: {}", e))?;
+
+        let msg: Vec<u8> = if info.has_signed_attrs {
+            // ICAO: signature is over DER-SET-of-signedAttrs
+            let mut m = vec![0x31];
+            m.extend(blen(info.signed_attrs.len()));
+            m.extend_from_slice(&info.signed_attrs);
+            m
+        } else {
+            let mut d = Sha256::new();
+            d.update(&info.sod_body);
+            d.finalize().to_vec()
+        };
+
+        key.verify(Pkcs1v15Sign::new::<Sha256>(), &msg, &info.signer_info_sig)
+            .map_err(|e| anyhow!("DS signature invalid: {}", e))
+    }
+
     /// Structurally-valid CMS SignedData SOd for the simulated passport.
     /// Signature = zero placeholder (C4b replaces with real DS signing).
     pub fn build_simulated_sod(dg1_sha256: &[u8]) -> Vec<u8> {
@@ -1128,5 +1181,17 @@ mod c1_tests {
         let info = sod::parse_sod(&sod).unwrap();
         let fake = sha256_hash(b"tampered-dg1");
         assert_ne!(info.dg_hash(1), Some(fake.as_slice()));
+    }
+    #[test]
+    fn simulated_sod_tiered_as_simulated() {
+        // C4b: placeholder signature + no cert → SIMULATED tier (not VERIFIED)
+        let d = get_simulated_passport(None, None);
+        let sod = hex::decode(&d.sod_hex).unwrap();
+        let info = sod::parse_sod(&sod).unwrap();
+        let is_placeholder = info.signer_info_sig.iter().all(|b| *b == 0);
+        assert!(is_placeholder && info.ds_cert_der.is_empty(),
+            "simulated SOD must be placeholder-tier");
+        // aur real verify FAIL hona chahiye (placeholder sig valid nahi hota)
+        assert!(sod::verify_ds_signature(&info).is_err());
     }
 }
