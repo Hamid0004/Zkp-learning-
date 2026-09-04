@@ -667,7 +667,15 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
     let dg1_hash  = sha256_hash(&dg1_bytes);
 
     
-    let integrity_ok = verify_sod_integrity(&sod_bytes, &dg1_hash);
+    // [C4a] ICAO 9303 integrity: DG1 hash must match the CMS SOd's DG1 entry
+    let integrity_ok = match sod::parse_sod(&sod_bytes) {
+        Ok(info) => {
+            let m = info.dg_hash(1).map(|h| h == dg1_hash.as_slice()).unwrap_or(false);
+            if !m { error!("SOD integrity: DG1 hash mismatch or missing in SOd"); }
+            m
+        }
+        Err(e) => { error!("SOD parse failed: {}", e); false }
+    };
     let signature_msg = match &data.ds_cert_hex {
         Some(cert) => match verify_ds_signature(&sod_bytes, &dg1_hash, cert) {
             Ok(true) => "VERIFIED", Ok(false) => "FAILED", Err(_) => "VERIFY_ERROR"
@@ -703,10 +711,10 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
 
 // Helpers
 fn sha256_hash(data: &[u8]) -> Vec<u8> { let mut h = Sha256::new(); h.update(data); h.finalize().to_vec() }
-fn verify_sod_integrity(sod: &[u8], dg1: &[u8]) -> bool {
+/*fn verify_sod_integrity(sod: &[u8], dg1: &[u8]) -> bool {
     for i in 0..sod.len().saturating_sub(dg1.len() + 2) { if sod[i] == 0x04 && sod[i+1] == dg1.len() as u8 && &sod[i+2..i+2+dg1.len()] == dg1 { return true; } }
     sod.windows(dg1.len()).any(|w| w == dg1)
-}
+}*/
 fn verify_ds_signature(sod: &[u8], hash: &[u8], cert_hex: &str) -> Result<bool> {
     let key = RsaPublicKey::from_public_key_der(&hex::decode(cert_hex)?)?;
     if sod.len() < 256 { return Err(anyhow!("SOD too small")); }
@@ -715,7 +723,7 @@ fn verify_ds_signature(sod: &[u8], hash: &[u8], cert_hex: &str) -> Result<bool> 
 fn get_simulated_passport(claim_type: Option<String>, domain: Option<String>) -> PassportData {
     let dg1 = b"P<PAKARSALAN<<KHAN<<<<<<<<<<<<<<<<<<<<<<<<<<AB1234567PAK9001011M2501010<<<<<<<<<<<<4";
     let hash = sha256_hash(dg1);
-    let mut sod = vec![0x04, 32]; sod.extend_from_slice(&hash);
+    let sod = sod::build_simulated_sod(&hash);
     PassportData {
         mode: InputMode::SimulatedPassport, first_name: "ARSALAN".into(), last_name: "KHAN".into(),
         document_number: "AB1234567".into(), date_of_birth: "900101".into(), nationality: "PAK".into(),
@@ -778,6 +786,211 @@ fn handle_req(env: &mut JNIEnv, json: Option<JString>, sim: bool, claim: Option<
         error_msg: e.to_string(), merkle_root: "".into(), trust_level: "NONE".into(), nullifier: "".into(), zk_output: None,
     });
     env.new_string(serde_json::to_string(&res).unwrap()).unwrap().into_raw()
+}
+// ═════════════════════════════════════════════════════════════════════════════
+// [C4a] ICAO 9303 EF.SOD — strict-DER structural extraction (zero new deps)
+//   C4a: parse CMS ContentInfo/SignedData → LDS Security Object → DG hashes,
+//        DS certificate, SignerInfo signature bytes.
+//   C4b (next): DS signature verification, cert chain, trust tiers (H3).
+// ═════════════════════════════════════════════════════════════════════════════
+mod sod {
+    use anyhow::{anyhow, Result};
+
+    const OID_SIGNED_DATA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02];
+    const OID_DATA:       &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01];
+    const OID_SHA256:     &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01];
+    const OID_RSA_ENCRYPTION: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01];
+
+    #[derive(Debug, Clone)]
+    pub struct DgHashEntry { pub number: u64, pub hash: Vec<u8> }
+
+    #[derive(Debug, Default, Clone)]
+    pub struct SodInfo {
+        pub dg_hashes: Vec<DgHashEntry>,
+        pub signer_info_sig: Vec<u8>,   // C4b: verify
+        pub signed_attrs: Vec<u8>,      // C4b: hash-verify messageDigest
+        pub has_signed_attrs: bool,
+        pub ds_cert_der: Vec<u8>,       // C4b: parse + chain (H3)
+        pub sod_body: Vec<u8>,          // signed content (LdsSecurityObject DER)
+    }
+
+    impl SodInfo {
+        pub fn dg_hash(&self, n: u64) -> Option<&[u8]> {
+            self.dg_hashes.iter().find(|x| x.number == n).map(|x| x.hash.as_slice())
+        }
+    }
+
+    /// Strict-DER TLV → (tag, value_start, value_end). Definite lengths only,
+    /// single-byte tags, fully bounds-checked.
+    fn tlv(buf: &[u8], pos: usize) -> Result<(u8, usize, usize)> {
+        if pos + 2 > buf.len() { return Err(anyhow!("DER: truncated at {}", pos)); }
+        let tag = buf[pos];
+        let first = buf[pos + 1];
+        let (v_start, len) = if first < 0x80 {
+            (pos + 2, first as usize)
+        } else {
+            let n = (first & 0x7F) as usize;
+            if n == 0 || n > 4 { return Err(anyhow!("DER: bad long-form length")); }
+            if pos + 2 + n > buf.len() { return Err(anyhow!("DER: truncated length")); }
+            let mut l = 0usize;
+            for b in &buf[pos + 2..pos + 2 + n] { l = (l << 8) | *b as usize; }
+            (pos + 2 + n, l)
+        };
+        let v_end = v_start.checked_add(len).ok_or_else(|| anyhow!("DER: overflow"))?;
+        if v_end > buf.len() { return Err(anyhow!("DER: value exceeds buffer")); }
+        Ok((tag, v_start, v_end))
+    }
+
+    fn children(buf: &[u8], s: usize, e: usize) -> Result<Vec<(u8, usize, usize)>> {
+        let mut out = Vec::new();
+        let mut cur = s;
+        while cur < e {
+            let (t, vs, ve) = tlv(buf, cur)?;
+            out.push((t, vs, ve));
+            cur = ve;
+        }
+        Ok(out)
+    }
+
+    fn read_uint(v: &[u8]) -> u64 {
+        let mut n = 0u64;
+        for b in v { n = (n << 8) | *b as u64; }
+        n
+    }
+
+    pub fn parse_sod(data: &[u8]) -> Result<SodInfo> {
+        // ContentInfo ::= SEQUENCE { contentType OID, content [0] EXPLICIT }
+        let (t, vs, ve) = tlv(data, 0)?;
+        if t != 0x30 { return Err(anyhow!("SOD: ContentInfo SEQUENCE expected")); }
+        let ck = children(data, vs, ve)?;
+        if ck.len() != 2 { return Err(anyhow!("SOD: ContentInfo children != 2")); }
+        let (t, s, e) = ck[0];
+        if t != 0x06 || &data[s..e] != OID_SIGNED_DATA {
+            return Err(anyhow!("SOD: contentType is not signedData"));
+        }
+        let (t, s, _e) = ck[1];
+        if t != 0xA0 { return Err(anyhow!("SOD: content [0] expected")); }
+
+        // SignedData ::= SEQUENCE { version, digestAlgorithms, encapContentInfo,
+        //                           [certificates], [crls], signerInfos }
+        let (t, ss, se) = tlv(data, s)?;
+        if t != 0x30 { return Err(anyhow!("SOD: SignedData SEQUENCE expected")); }
+        let sk = children(data, ss, se)?;
+        if sk.len() < 4 { return Err(anyhow!("SOD: SignedData too short")); }
+
+        // encapContentInfo (sk[2]) → eContent [0] EXPLICIT OCTET STRING = SOd
+        let (t, es, ee) = sk[2];
+        if t != 0x30 { return Err(anyhow!("SOD: encapContentInfo SEQUENCE expected")); }
+        let ek = children(data, es, ee)?;
+        if ek.len() != 2 { return Err(anyhow!("SOD: encapContentInfo children != 2")); }
+        let (t, s, _e) = ek[1];
+        if t != 0xA0 { return Err(anyhow!("SOD: eContent [0] expected")); }
+        let (t, s, e) = tlv(data, s)?;
+        if t != 0x04 { return Err(anyhow!("SOD: SOd OCTET STRING expected")); }
+        let sod_body: Vec<u8> = data[s..e].to_vec();
+
+        let mut info = SodInfo::default();
+        info.sod_body = sod_body.clone();
+
+        // sk[3..]: optional certificates [0], optional crls [1], signerInfos 0x31
+        for &(tag, s, e) in sk[3..].iter() {
+            match tag {
+                0xA0 => { // certificates (IMPLICIT SET) — first = Document Signer
+                    if let Ok((0x30, cs, ce)) = tlv(data, s) {
+                        info.ds_cert_der = data[cs..ce].to_vec();
+                    }
+                }
+                0xA1 => {} // crls — ignored
+                0x31 => { // signerInfos — first SignerInfo
+                    if let Some((0x30, sis, sie)) = children(data, s, e)?.first().copied() {
+                        let sik = children(data, sis, sie)?;
+                        // sik: [version, sid, digestAlg, (signedAttrs), sigAlg, signature]
+                        let mut i = 3;
+                        if i < sik.len() && sik[i].0 == 0xA0 {
+                            info.has_signed_attrs = true;
+                            info.signed_attrs = data[sik[i].1..sik[i].2].to_vec();
+                            i += 1;
+                        }
+                        i += 1; // signatureAlgorithm
+                        if i < sik.len() && sik[i].0 == 0x04 {
+                            info.signer_info_sig = data[sik[i].1..sik[i].2].to_vec();
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // ── LdsSecurityObject ::= SEQUENCE { version, hashAlgorithm, dgHashValues } ──
+        let (t, ls, le) = tlv(&sod_body, 0)?;
+        if t != 0x30 { return Err(anyhow!("SOd: LdsSecurityObject SEQUENCE expected")); }
+        let lk = children(&sod_body, ls, le)?;
+        if lk.len() < 3 { return Err(anyhow!("SOd: too short")); }
+        let (t, gs, ge) = lk[2];
+        if t != 0x30 { return Err(anyhow!("SOd: dataGroupHashValues expected")); }
+        for (t, s, e) in children(&sod_body, gs, ge)? {
+            if t != 0x30 { continue; }
+            let gk = children(&sod_body, s, e)?;
+            if gk.len() != 2 { continue; }
+            let (t1, s1, e1) = gk[0];
+            let (t2, s2, e2) = gk[1];
+            if t1 == 0x02 && t2 == 0x04 {
+                info.dg_hashes.push(DgHashEntry {
+                    number: read_uint(&sod_body[s1..e1]),
+                    hash: sod_body[s2..e2].to_vec(),
+                });
+            }
+        }
+        Ok(info)
+    }
+
+    // ── DER builders (simulated passport ke liye REAL CMS structure) ──
+    fn blen(l: usize) -> Vec<u8> {
+        if l < 0x80 { vec![l as u8] } else if l <= 0xFF { vec![0x81, l as u8] }
+        else { vec![0x82, (l >> 8) as u8, l as u8] }
+    }
+    fn btlv(tag: u8, val: &[u8]) -> Vec<u8> {
+        let mut o = vec![tag]; o.extend(blen(val.len())); o.extend_from_slice(val); o
+    }
+    fn flatten(children: Vec<Vec<u8>>) -> Vec<u8> { children.into_iter().flatten().collect() }
+    fn bseq(c: Vec<Vec<u8>>) -> Vec<u8> { btlv(0x30, &flatten(c)) }
+    fn bset(c: Vec<Vec<u8>>) -> Vec<u8> { btlv(0x31, &flatten(c)) }
+    fn bint(n: u64) -> Vec<u8> {
+        let be = n.to_be_bytes();
+        let mut i = 0; while i < 7 && be[i] == 0 { i += 1; }
+        let mut v = be[i..].to_vec();
+        if v[0] & 0x80 != 0 { v.insert(0, 0); }
+        btlv(0x02, &v)
+    }
+    fn boct(v: &[u8]) -> Vec<u8> { btlv(0x04, v) }
+
+    /// Structurally-valid CMS SignedData SOd for the simulated passport.
+    /// Signature = zero placeholder (C4b replaces with real DS signing).
+    pub fn build_simulated_sod(dg1_sha256: &[u8]) -> Vec<u8> {
+        let lso = bseq(vec![                      // LdsSecurityObject
+            bint(0),
+            bseq(vec![btlv(0x06, OID_SHA256)]),
+            bseq(vec![bseq(vec![bint(1), boct(dg1_sha256)])]), // DG1 hash
+        ]);
+        let econtent = bseq(vec![                 // encapContentInfo (id-data)
+            btlv(0x06, OID_DATA),
+            btlv(0xA0, &boct(&lso)),
+        ]);
+        let signer_info = bseq(vec![
+            bint(1),                                    // version
+            bseq(vec![bint(1)]),                        // sid (issuerAndSerialNumber, simplified)
+            bseq(vec![btlv(0x06, OID_SHA256)]),         // digestAlgorithm
+            btlv(0x06, OID_RSA_ENCRYPTION),             // signatureAlgorithm
+            boct(&vec![0u8; 256]),                      // signature placeholder (C4b: real DS signing)
+        ]);
+        let signed_data = bseq(vec![
+            bint(1),
+            bset(vec![bseq(vec![btlv(0x06, OID_SHA256)])]),   // digestAlgorithms
+            econtent,
+            bset(vec![signer_info]),
+        ]);
+        bseq(vec![btlv(0x06, OID_SIGNED_DATA), btlv(0xA0, &signed_data)])
+    }
 }
 #[cfg(test)]
 mod c1_tests {
@@ -896,5 +1109,24 @@ mod c1_tests {
         // M4: exact civil-calendar math (epoch + leap-year window)
         assert_eq!(civil_from_days(0), (1970, 1, 1));
         assert_eq!(civil_from_days(19_723), (2024, 1, 1));
+    }
+    #[test]
+    fn simulated_sod_parses_and_binds_dg1() {
+        // C4a: simulated SOD is now a REAL CMS structure; DG1 hash binds
+        let d = get_simulated_passport(None, None);
+        let dg1 = hex::decode(&d.dg1_hex).unwrap();
+        let sod = hex::decode(&d.sod_hex).unwrap();
+        let info = sod::parse_sod(&sod).expect("CMS parse");
+        assert_eq!(info.dg_hash(1), Some(sha256_hash(&dg1).as_slice()));
+        assert!(info.signer_info_sig.len() == 256); // placeholder present
+    }
+
+    #[test]
+    fn tampered_dg1_fails_sod_integrity() {
+        let d = get_simulated_passport(None, None);
+        let sod = hex::decode(&d.sod_hex).unwrap();
+        let info = sod::parse_sod(&sod).unwrap();
+        let fake = sha256_hash(b"tampered-dg1");
+        assert_ne!(info.dg_hash(1), Some(fake.as_slice()));
     }
 }
