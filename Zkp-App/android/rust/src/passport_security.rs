@@ -63,8 +63,6 @@ use android_logger::Config;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use rsa::{RsaPublicKey, Pkcs1v15Sign};
-use rsa::pkcs8::DecodePublicKey;
 use hex;
 use anyhow::{anyhow, Result};
 use std::time::{SystemTime, UNIX_EPOCH, Instant};
@@ -676,11 +674,21 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
         }
         Err(e) => { error!("SOD parse failed: {}", e); false }
     };
-    let signature_msg = match &data.ds_cert_hex {
-        Some(cert) => match verify_ds_signature(&sod_bytes, &dg1_hash, cert) {
-            Ok(true) => "VERIFIED", Ok(false) => "FAILED", Err(_) => "VERIFY_ERROR"
-        },
-        None => if dg1_hash.len() == 32 { "SIMULATED" } else { "FAILED" },
+    // [C4b] DS signature verification against the CMS SignerInfo.
+    // Tier: VERIFIED (real cert+sig) / SIMULATED (placeholder sig, no cert) / FAILED
+    let signature_msg = match sod::parse_sod(&sod_bytes) {
+        Ok(info) => {
+            let is_placeholder = info.signer_info_sig.iter().all(|b| *b == 0);
+            if is_placeholder && info.ds_cert_der.is_empty() {
+                "SIMULATED"   // simulated pipeline — placeholder signature, no cert
+            } else {
+                match sod::verify_ds_signature(&info) {
+                    Ok(()) => "VERIFIED",
+                    Err(e) => { error!("DS verify: {}", e); "FAILED" }
+                }
+            }
+        }
+        Err(e) => { error!("SOD parse (sig): {}", e); "FAILED" }
     };
 
     let device_rng = match data.device_rng_hex.as_deref() {
@@ -711,15 +719,7 @@ pub fn prove_passport(data: PassportData) -> Result<PassportProofResult> {
 
 // Helpers
 fn sha256_hash(data: &[u8]) -> Vec<u8> { let mut h = Sha256::new(); h.update(data); h.finalize().to_vec() }
-/*fn verify_sod_integrity(sod: &[u8], dg1: &[u8]) -> bool {
-    for i in 0..sod.len().saturating_sub(dg1.len() + 2) { if sod[i] == 0x04 && sod[i+1] == dg1.len() as u8 && &sod[i+2..i+2+dg1.len()] == dg1 { return true; } }
-    sod.windows(dg1.len()).any(|w| w == dg1)
-}*/
-fn verify_ds_signature(sod: &[u8], hash: &[u8], cert_hex: &str) -> Result<bool> {
-    let key = RsaPublicKey::from_public_key_der(&hex::decode(cert_hex)?)?;
-    if sod.len() < 256 { return Err(anyhow!("SOD too small")); }
-    Ok(key.verify(Pkcs1v15Sign::new::<sha2::Sha256>(), hash, &sod[sod.len()-256..]).is_ok())
-}
+
 fn get_simulated_passport(claim_type: Option<String>, domain: Option<String>) -> PassportData {
     let dg1 = b"P<PAKARSALAN<<KHAN<<<<<<<<<<<<<<<<<<<<<<<<<<AB1234567PAK9001011M2501010<<<<<<<<<<<<4";
     let hash = sha256_hash(dg1);
@@ -793,13 +793,26 @@ fn handle_req(env: &mut JNIEnv, json: Option<JString>, sim: bool, claim: Option<
 //        DS certificate, SignerInfo signature bytes.
 //   C4b (next): DS signature verification, cert chain, trust tiers (H3).
 // ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// [C4a+C4b] ICAO 9303 EF.SOD — CMS SignedData parse + DS signature verify
+//   Standards: RFC 5652 (CMS), ICAO Doc 9303-10 (LDS Security Object profile)
+//   - eContentType MUST be id-icao-ldsSecurityObject (2.23.136.1.1.1)
+//   - algorithm-aware: SHA-224/256/384/512 digest dispatch (fail-closed)
+//   - signedAttrs path: messageDigest attribute MUST equal Hash(eContent)
+//   C4c backlog: SignerIdentifier↔cert matching, profile validation,
+//                ECDSA, x509-parser, CSCA chain, trust tiers (H3)
+// ═════════════════════════════════════════════════════════════════════════════
 mod sod {
     use anyhow::{anyhow, Result};
 
     const OID_SIGNED_DATA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02];
-    const OID_DATA:       &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01];
-    const OID_SHA256:     &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01];
+    const OID_SHA224: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04];
+    const OID_SHA256: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01];
+    const OID_SHA384: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02];
+    const OID_SHA512: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03];
     const OID_RSA_ENCRYPTION: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01];
+    const OID_LDS_SECURITY_OBJECT: &[u8] = &[0x53, 0x88, 0x08, 0x01, 0x01, 0x01]; // 2.23.136.1.1.1
+    const OID_MESSAGE_DIGEST: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x04];
 
     #[derive(Debug, Clone)]
     pub struct DgHashEntry { pub number: u64, pub hash: Vec<u8> }
@@ -807,11 +820,14 @@ mod sod {
     #[derive(Debug, Default, Clone)]
     pub struct SodInfo {
         pub dg_hashes: Vec<DgHashEntry>,
-        pub signer_info_sig: Vec<u8>,   // C4b: verify
-        pub signed_attrs: Vec<u8>,      // C4b: hash-verify messageDigest
+        pub signer_info_sig: Vec<u8>,
+        pub signed_attrs: Vec<u8>,
         pub has_signed_attrs: bool,
-        pub ds_cert_der: Vec<u8>,       // C4b: parse + chain (H3)
-        pub sod_body: Vec<u8>,          // signed content (LdsSecurityObject DER)
+        pub ds_cert_der: Vec<u8>,
+        pub sod_body: Vec<u8>,
+        pub digest_oid: Vec<u8>,
+        pub sig_oid: Vec<u8>,
+        pub content_type_oid: Vec<u8>,
     }
 
     impl SodInfo {
@@ -820,8 +836,6 @@ mod sod {
         }
     }
 
-    /// Strict-DER TLV → (tag, value_start, value_end). Definite lengths only,
-    /// single-byte tags, fully bounds-checked.
     fn tlv(buf: &[u8], pos: usize) -> Result<(u8, usize, usize)> {
         if pos + 2 > buf.len() { return Err(anyhow!("DER: truncated at {}", pos)); }
         let tag = buf[pos];
@@ -858,8 +872,13 @@ mod sod {
         n
     }
 
+    fn first_oid(buf: &[u8], s: usize, _e: usize) -> Option<Vec<u8>> {
+        let (t, vs, ve) = tlv(buf, s).ok()?;
+        if t != 0x06 { return None; }
+        Some(buf[vs..ve].to_vec())
+    }
+
     pub fn parse_sod(data: &[u8]) -> Result<SodInfo> {
-        // ContentInfo ::= SEQUENCE { contentType OID, content [0] EXPLICIT }
         let (t, vs, ve) = tlv(data, 0)?;
         if t != 0x30 { return Err(anyhow!("SOD: ContentInfo SEQUENCE expected")); }
         let ck = children(data, vs, ve)?;
@@ -871,18 +890,23 @@ mod sod {
         let (t, s, _e) = ck[1];
         if t != 0xA0 { return Err(anyhow!("SOD: content [0] expected")); }
 
-        // SignedData ::= SEQUENCE { version, digestAlgorithms, encapContentInfo,
-        //                           [certificates], [crls], signerInfos }
         let (t, ss, se) = tlv(data, s)?;
         if t != 0x30 { return Err(anyhow!("SOD: SignedData SEQUENCE expected")); }
         let sk = children(data, ss, se)?;
         if sk.len() < 4 { return Err(anyhow!("SOD: SignedData too short")); }
 
-        // encapContentInfo (sk[2]) → eContent [0] EXPLICIT OCTET STRING = SOd
         let (t, es, ee) = sk[2];
         if t != 0x30 { return Err(anyhow!("SOD: encapContentInfo SEQUENCE expected")); }
         let ek = children(data, es, ee)?;
         if ek.len() != 2 { return Err(anyhow!("SOD: encapContentInfo children != 2")); }
+        let (t, os, oe) = ek[0];
+        if t != 0x06 { return Err(anyhow!("SOD: eContentType OID expected")); }
+        let ct = data[os..oe].to_vec();
+        if ct != OID_LDS_SECURITY_OBJECT {
+            return Err(anyhow!(
+                "SOD: eContentType must be id-icao-ldsSecurityObject (2.23.136.1.1.1), got {:?}", ct
+            ));
+        }
         let (t, s, _e) = ek[1];
         if t != 0xA0 { return Err(anyhow!("SOD: eContent [0] expected")); }
         let (t, s, e) = tlv(data, s)?;
@@ -891,27 +915,40 @@ mod sod {
 
         let mut info = SodInfo::default();
         info.sod_body = sod_body.clone();
+        info.content_type_oid = ct;
 
-        // sk[3..]: optional certificates [0], optional crls [1], signerInfos 0x31
         for &(tag, s, e) in sk[3..].iter() {
             match tag {
-                0xA0 => { // certificates (IMPLICIT SET) — first = Document Signer
-                    if let Ok((0x30, cs, ce)) = tlv(data, s) {
-                        info.ds_cert_der = data[cs..ce].to_vec();
+                0xA0 => {
+                    // [0] IMPLICIT CertificateSet: children = Certificate TLVs.
+                    // Reconstruct full cert DER including SEQUENCE header.
+                    if let Ok(certs) = children(data, s, e) {
+                        if let Some(&(0x30, vs, ve)) = certs.first() {
+                            let mut der = vec![0x30];
+                            der.extend(blen(ve - vs));
+                            der.extend_from_slice(&data[vs..ve]);
+                            info.ds_cert_der = der;
+                        }
                     }
                 }
-                0xA1 => {} // crls — ignored
-                0x31 => { // signerInfos — first SignerInfo
+                0xA1 => {}
+                0x31 => {
                     if let Some((0x30, sis, sie)) = children(data, s, e)?.first().copied() {
                         let sik = children(data, sis, sie)?;
-                        // sik: [version, sid, digestAlg, (signedAttrs), sigAlg, signature]
+                        if sik.len() < 3 { continue; }
+                        if sik[2].0 == 0x30 {
+                            info.digest_oid = first_oid(data, sik[2].1, sik[2].2).unwrap_or_default();
+                        }
                         let mut i = 3;
                         if i < sik.len() && sik[i].0 == 0xA0 {
                             info.has_signed_attrs = true;
                             info.signed_attrs = data[sik[i].1..sik[i].2].to_vec();
                             i += 1;
                         }
-                        i += 1; // signatureAlgorithm
+                        if i < sik.len() && sik[i].0 == 0x30 {
+                            info.sig_oid = first_oid(data, sik[i].1, sik[i].2).unwrap_or_default();
+                            i += 1;
+                        }
                         if i < sik.len() && sik[i].0 == 0x04 {
                             info.signer_info_sig = data[sik[i].1..sik[i].2].to_vec();
                         }
@@ -921,7 +958,6 @@ mod sod {
             }
         }
 
-        // ── LdsSecurityObject ::= SEQUENCE { version, hashAlgorithm, dgHashValues } ──
         let (t, ls, le) = tlv(&sod_body, 0)?;
         if t != 0x30 { return Err(anyhow!("SOd: LdsSecurityObject SEQUENCE expected")); }
         let lk = children(&sod_body, ls, le)?;
@@ -944,7 +980,96 @@ mod sod {
         Ok(info)
     }
 
-    // ── DER builders (simulated passport ke liye REAL CMS structure) ──
+    // ── [C4b] DS signature verify — high-level VerifyingKey API (hashes internally) ──
+    pub fn verify_ds_signature(info: &SodInfo) -> Result<()> {
+        use rsa::pkcs1v15::{Signature, VerifyingKey};
+        use rsa::signature::Verifier;
+        use sha2::{Digest, Sha224, Sha256, Sha384, Sha512};
+
+        if info.ds_cert_der.is_empty() { return Err(anyhow!("no DS certificate in SOD")); }
+        if info.signer_info_sig.is_empty() { return Err(anyhow!("no SignerInfo signature in SOD")); }
+        if info.digest_oid.is_empty() || info.sig_oid.is_empty() {
+            return Err(anyhow!("missing AlgorithmIdentifier fields (profile-invalid SOD)"));
+        }
+        if info.sig_oid != OID_RSA_ENCRYPTION {
+            return Err(anyhow!("unsupported signatureAlgorithm (ECDSA → C4c, fail-closed)"));
+        }
+
+        let sig = Signature::try_from(info.signer_info_sig.as_slice())
+            .map_err(|e| anyhow!("signature decode: {e}"))?;
+        let key = extract_spki_key(info)?;
+
+        macro_rules! run {
+            ($h:ty) => {{
+                let content_digest = <$h as Digest>::digest(&info.sod_body);
+                let msg = signed_msg(info, content_digest.as_slice())?;
+                let vk = VerifyingKey::<$h>::new(key.clone());
+                vk.verify(&msg, &sig).map_err(|e| anyhow!("DS signature invalid: {e}"))
+            }};
+        }
+        match info.digest_oid.as_slice() {
+            x if x == OID_SHA224 => run!(Sha224),
+            x if x == OID_SHA256 => run!(Sha256),
+            x if x == OID_SHA384 => run!(Sha384),
+            x if x == OID_SHA512 => run!(Sha512),
+            other => Err(anyhow!("unsupported digestAlgorithm {other:?}")),
+        }
+    }
+
+    fn extract_spki_key(info: &SodInfo) -> Result<rsa::RsaPublicKey> {
+        use rsa::RsaPublicKey;
+        use rsa::pkcs8::DecodePublicKey;
+        let (t, s, _e) = tlv(&info.ds_cert_der, 0)?;
+        if t != 0x30 { return Err(anyhow!("cert: SEQUENCE expected")); }
+        let (t, ts, te) = tlv(&info.ds_cert_der, s)?;
+        if t != 0x30 { return Err(anyhow!("cert: TBSCertificate expected")); }
+        // [C4b-fix] SPKI = LAST field of TBSCertificate (true for v1 & v3).
+        // Walk children, keep full TLV of the last one (header included).
+        let mut cur = ts;
+        let mut last_start = ts;
+        while cur < te {
+            let (_tag, _vs, ve) = tlv(&info.ds_cert_der, cur)?;
+            last_start = cur;          // start of this child's TLV
+            cur = ve;
+        }
+        if last_start >= te { return Err(anyhow!("cert: TBS too short")); }
+        let (t, _vs, _ve) = tlv(&info.ds_cert_der, last_start)?;
+        if t != 0x30 { return Err(anyhow!("cert: SPKI expected")); }
+        RsaPublicKey::from_public_key_der(&info.ds_cert_der[last_start..te])
+            .map_err(|e| anyhow!("SPKI parse: {e}"))
+    }
+
+    // msg for VerifyingKey: raw content (no-attrs) or 0x31-wrapped attrs (attrs path).
+    // Enforces RFC 5652 §5.4: messageDigest attr MUST equal Hash(eContent).
+    fn signed_msg(info: &SodInfo, content_digest: &[u8]) -> Result<Vec<u8>> {
+        if !info.has_signed_attrs {
+            return Ok(info.sod_body.clone());
+        }
+        let mut md_ok = false;
+        for (t, s, e) in children(&info.signed_attrs, 0, info.signed_attrs.len())? {
+            if t != 0x30 { continue; }
+            let k = children(&info.signed_attrs, s, e)?;
+            if k.len() != 2 { continue; }
+            let (t1, s1, e1) = k[0];
+            if t1 == 0x06 && &info.signed_attrs[s1..e1] == OID_MESSAGE_DIGEST {
+                md_ok = true;
+                let (t2, s2, _e2) = k[1];
+                if t2 != 0x31 { return Err(anyhow!("messageDigest: SET expected")); }
+                let (t3, s3, e3) = tlv(&info.signed_attrs, s2)?;
+                if t3 != 0x04 { return Err(anyhow!("messageDigest: OCTET STRING expected")); }
+                if info.signed_attrs[s3..e3] != *content_digest {
+                    return Err(anyhow!("messageDigest MISMATCH — signedAttrs do not bind this content"));
+                }
+            }
+        }
+        if !md_ok { return Err(anyhow!("messageDigest attribute missing")); }
+        let mut m = vec![0x31];
+        m.extend(blen(info.signed_attrs.len()));
+        m.extend_from_slice(&info.signed_attrs);
+        Ok(m)
+    }
+
+    // ── DER builders ─────────────────────────────────────────────────────────
     fn blen(l: usize) -> Vec<u8> {
         if l < 0x80 { vec![l as u8] } else if l <= 0xFF { vec![0x81, l as u8] }
         else { vec![0x82, (l >> 8) as u8, l as u8] }
@@ -964,34 +1089,105 @@ mod sod {
     }
     fn boct(v: &[u8]) -> Vec<u8> { btlv(0x04, v) }
 
-    /// Structurally-valid CMS SignedData SOd for the simulated passport.
-    /// Signature = zero placeholder (C4b replaces with real DS signing).
     pub fn build_simulated_sod(dg1_sha256: &[u8]) -> Vec<u8> {
-        let lso = bseq(vec![                      // LdsSecurityObject
+        let lso = bseq(vec![
             bint(0),
             bseq(vec![btlv(0x06, OID_SHA256)]),
-            bseq(vec![bseq(vec![bint(1), boct(dg1_sha256)])]), // DG1 hash
+            bseq(vec![bseq(vec![bint(1), boct(dg1_sha256)])]),
         ]);
-        let econtent = bseq(vec![                 // encapContentInfo (id-data)
-            btlv(0x06, OID_DATA),
+        let econtent = bseq(vec![
+            btlv(0x06, OID_LDS_SECURITY_OBJECT),
             btlv(0xA0, &boct(&lso)),
         ]);
         let signer_info = bseq(vec![
-            bint(1),                                    // version
-            bseq(vec![bint(1)]),                        // sid (issuerAndSerialNumber, simplified)
-            bseq(vec![btlv(0x06, OID_SHA256)]),         // digestAlgorithm
-            btlv(0x06, OID_RSA_ENCRYPTION),             // signatureAlgorithm
-            boct(&vec![0u8; 256]),                      // signature placeholder (C4b: real DS signing)
+            bint(1),
+            bseq(vec![bint(1)]),
+            bseq(vec![btlv(0x06, OID_SHA256)]),
+            bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]),
+            boct(&vec![0u8; 256]),
         ]);
         let signed_data = bseq(vec![
             bint(1),
-            bset(vec![bseq(vec![btlv(0x06, OID_SHA256)])]),   // digestAlgorithms
+            bset(vec![bseq(vec![btlv(0x06, OID_SHA256)])]),
             econtent,
             bset(vec![signer_info]),
         ]);
         bseq(vec![btlv(0x06, OID_SIGNED_DATA), btlv(0xA0, &signed_data)])
     }
+
+    // ── [C4b-test] deterministic real-crypto fixtures (SigningKey API) ───────
+    #[cfg(test)]
+    pub fn build_test_cert(spki_der: &[u8], key: &rsa::RsaPrivateKey) -> Result<Vec<u8>> {
+        use rsa::pkcs1v15::SigningKey;
+        use rsa::signature::{SignatureEncoding, Signer};
+        use sha2::Sha256;
+        let alg = bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]);
+        let tbs = bseq(vec![
+            btlv(0xA0, &bint(2)),
+            bint(1),
+            alg.clone(),
+            bseq(vec![]),
+            bseq(vec![btlv(0x17, b"250101000000Z"), btlv(0x17, b"350101000000Z")]),
+            bseq(vec![]),
+            spki_der.to_vec(),
+        ]);
+        let sig = SigningKey::<Sha256>::new(key.clone()).sign(&tbs).to_vec();
+        let mut bits = vec![0u8];
+        bits.extend_from_slice(&sig);
+        Ok(bseq(vec![tbs, alg, btlv(0x03, &bits)]))
+    }
+
+    #[cfg(test)]
+    pub fn build_signed_sod(
+        dg1_sha256: &[u8],
+        cert_der: &[u8],
+        key: &rsa::RsaPrivateKey,
+        with_signed_attrs: bool,
+    ) -> Result<Vec<u8>> {
+        use rsa::pkcs1v15::SigningKey;
+        use rsa::signature::{SignatureEncoding, Signer};
+        use sha2::{Digest, Sha256};
+        let lso = bseq(vec![
+            bint(0),
+            bseq(vec![btlv(0x06, OID_SHA256)]),
+            bseq(vec![bseq(vec![bint(1), boct(dg1_sha256)])]),
+        ]);
+        let econtent = bseq(vec![
+            btlv(0x06, OID_LDS_SECURITY_OBJECT),
+            btlv(0xA0, &boct(&lso)),
+        ]);
+        let signing = SigningKey::<Sha256>::new(key.clone());
+        let mut signer = vec![
+            bint(1),
+            bseq(vec![bint(1)]),
+            bseq(vec![btlv(0x06, OID_SHA256)]),
+        ];
+        if with_signed_attrs {
+            let content_digest = Sha256::digest(&lso);
+            let attrs = flatten(vec![
+                bseq(vec![btlv(0x06, OID_MESSAGE_DIGEST), bset(vec![boct(&content_digest)])]),
+            ]);
+            let set_der = btlv(0x31, &attrs);
+            let sig = signing.sign(&set_der).to_vec();
+            signer.push(btlv(0xA0, &attrs));
+            signer.push(bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]));
+            signer.push(boct(&sig));
+        } else {
+            let sig = signing.sign(&lso).to_vec();
+            signer.push(bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]));
+            signer.push(boct(&sig));
+        }
+        let signed_data = bseq(vec![
+            bint(1),
+            bset(vec![bseq(vec![btlv(0x06, OID_SHA256)])]),
+            econtent,
+            btlv(0xA0, cert_der),   // certificates [0] IMPLICIT CertificateSet (RFC 5652)
+            bset(vec![bseq(signer)]),
+        ]);
+        Ok(bseq(vec![btlv(0x06, OID_SIGNED_DATA), btlv(0xA0, &signed_data)]))
+    }
 }
+
 #[cfg(test)]
 mod c1_tests {
     use super::*;
@@ -1128,5 +1324,66 @@ mod c1_tests {
         let info = sod::parse_sod(&sod).unwrap();
         let fake = sha256_hash(b"tampered-dg1");
         assert_ne!(info.dg_hash(1), Some(fake.as_slice()));
+    }
+    #[test]
+    fn simulated_sod_tiered_as_simulated() {
+        // C4b: placeholder signature + no cert → SIMULATED tier (not VERIFIED)
+        let d = get_simulated_passport(None, None);
+        let sod = hex::decode(&d.sod_hex).unwrap();
+        let info = sod::parse_sod(&sod).unwrap();
+        let is_placeholder = info.signer_info_sig.iter().all(|b| *b == 0);
+        assert!(is_placeholder && info.ds_cert_der.is_empty(),
+            "simulated SOD must be placeholder-tier");
+        // aur real verify FAIL hona chahiye (placeholder sig valid nahi hota)
+        assert!(sod::verify_ds_signature(&info).is_err());
+    }
+
+    #[test]
+    fn positive_real_signature_attrs_path_verified() {
+        // Review fix: REAL crypto positive — signedAttrs + messageDigest binding
+        use rsa::pkcs8::EncodePublicKey;
+        let mut rng = rand::thread_rng();
+        let key = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let spki = key.to_public_key().to_public_key_der().unwrap().as_bytes().to_vec();
+        let cert = sod::build_test_cert(&spki, &key).unwrap();
+        let dg1 = sha256_hash(b"P<POSITIVE<<TEST<<<<<<<<<<<<<<<<<<<<<<X1234567USA9001011M");
+        let sod_der = sod::build_signed_sod(&dg1, &cert, &key, true).unwrap();
+        let info = sod::parse_sod(&sod_der).unwrap();
+        assert!(info.has_signed_attrs);
+        assert_eq!(info.dg_hash(1), Some(dg1.as_slice()));
+        sod::verify_ds_signature(&info).expect("real signature must VERIFY");
+    }
+
+    #[test]
+    fn positive_real_signature_no_attrs_verified() {
+        use rsa::pkcs8::EncodePublicKey;
+        let mut rng = rand::thread_rng();
+        let key = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let spki = key.to_public_key().to_public_key_der().unwrap().as_bytes().to_vec();
+        let cert = sod::build_test_cert(&spki, &key).unwrap();
+        let dg1 = sha256_hash(b"P<POSITIVE<<NOATTRS<<<<<<<<<<<<<<<<<<<<X7654321DEU8801011M");
+        let sod_der = sod::build_signed_sod(&dg1, &cert, &key, false).unwrap();
+        let info = sod::parse_sod(&sod_der).unwrap();
+        assert!(!info.has_signed_attrs);
+        sod::verify_ds_signature(&info).expect("no-attrs path must VERIFY");
+    }
+
+    #[test]
+    fn message_digest_tamper_rejected() {
+        // C4b-1 proof: content bit-flip breaks messageDigest binding
+        use rsa::pkcs8::EncodePublicKey;
+        let mut rng = rand::thread_rng();
+        let key = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let spki = key.to_public_key().to_public_key_der().unwrap().as_bytes().to_vec();
+        let cert = sod::build_test_cert(&spki, &key).unwrap();
+        let dg1 = sha256_hash(b"P<TAMPER<<CHECK<<<<<<<<<<<<<<<<<<<<<<Z1111119FRA7501012F");
+        let sod_der = sod::build_signed_sod(&dg1, &cert, &key, true).unwrap();
+        let mut info = sod::parse_sod(&sod_der).unwrap();
+        let last = info.sod_body.len() - 1;
+        info.sod_body[last] ^= 0x01;
+        assert!(
+            sod::verify_ds_signature(&info).is_err(),
+            "content tamper MUST break messageDigest binding"
+        );
     }
 }
