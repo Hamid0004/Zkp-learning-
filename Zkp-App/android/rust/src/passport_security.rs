@@ -819,9 +819,15 @@ mod sod {
     const OID_SHA256: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01];
     const OID_SHA384: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02];
     const OID_SHA512: &[u8] = &[0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03];
-    const OID_RSA_ENCRYPTION: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01];
-    const OID_LDS_SECURITY_OBJECT: &[u8] = &[0x53, 0x88, 0x08, 0x01, 0x01, 0x01]; // 2.23.136.1.1.1
+    const OID_RSA_ENCRYPTION: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01]; // SPKI only
+    const OID_SHA224_WITH_RSA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0E];
+    const OID_SHA256_WITH_RSA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B];
+    const OID_SHA384_WITH_RSA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0C];
+    const OID_SHA512_WITH_RSA: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0D];
+    // [C4d-fix] 2.23.136.1.1.1 — DER: 2.23→0x67, 136→0x81 0x08 (was 0x53 0x88 0x08 ❌)
+    const OID_LDS_SECURITY_OBJECT: &[u8] = &[0x67, 0x81, 0x08, 0x01, 0x01, 0x01];
     const OID_MESSAGE_DIGEST: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x04];
+    const OID_CONTENT_TYPE: &[u8] = &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x03];
 
     #[derive(Debug, Clone)]
     pub struct DgHashEntry { pub number: u64, pub hash: Vec<u8> }
@@ -929,8 +935,8 @@ mod sod {
         for &(tag, s, e) in sk[3..].iter() {
             match tag {
                 0xA0 => {
-                    // [0] IMPLICIT CertificateSet: children = Certificate TLVs.
-                    // Reconstruct full cert DER including SEQUENCE header.
+                    // [0] IMPLICIT CertificateSet: children = Certificate TLVs;
+                    // re-encode full DER incl. header
                     if let Ok(certs) = children(data, s, e) {
                         if let Some(&(0x30, vs, ve)) = certs.first() {
                             let mut der = vec![0x30];
@@ -989,7 +995,74 @@ mod sod {
         Ok(info)
     }
 
-    // ── [C4b] DS signature verify — high-level VerifyingKey API (hashes internally) ──
+    fn extract_spki_key(info: &SodInfo) -> Result<RsaPublicKey> {
+        use rsa::RsaPublicKey;
+        use rsa::pkcs8::DecodePublicKey;
+        let (t, s, _e) = tlv(&info.ds_cert_der, 0)?;
+        if t != 0x30 { return Err(anyhow!("cert: SEQUENCE expected")); }
+        let (t, ts, te) = tlv(&info.ds_cert_der, s)?;
+        if t != 0x30 { return Err(anyhow!("cert: TBSCertificate expected")); }
+        // [C4d] v3-aware indexed walk: [0]version?, serial, sig, issuer, validity,
+        // subject, SPKI. uniqueIDs/extensions come AFTER SPKI — never assume last!
+        let mut cur = ts;
+        let mut field_idx = 0usize;
+        let mut spki_target = 6usize;
+        let mut spki: Option<(usize, usize)> = None;
+        while cur < te {
+            let (tag, _vs, ve) = tlv(&info.ds_cert_der, cur)?;
+            if field_idx == 0 && tag != 0xA0 { spki_target = 5; } // v1
+            if field_idx == spki_target {
+                if tag != 0x30 { return Err(anyhow!("cert: SPKI expected")); }
+                spki = Some((cur, ve));
+                break;
+            }
+            field_idx += 1;
+            cur = ve;
+        }
+        let (s0, e0) = spki.ok_or_else(|| anyhow!("cert: SPKI missing or TBS too short"))?;
+        RsaPublicKey::from_public_key_der(&info.ds_cert_der[s0..e0])
+            .map_err(|e| anyhow!("SPKI parse: {e}"))
+    }
+    use rsa::RsaPublicKey;
+
+    /// [C4d] RFC 5652 §5.4: signedAttrs MUST contain contentType (== eContentType)
+    /// and messageDigest (== Hash(eContent)). Both enforced here, fail-closed.
+    fn signed_attrs_check(info: &SodInfo, content_digest: &[u8]) -> Result<()> {
+        let mut ct_ok = false;
+        let mut md_ok = false;
+        for (t, s, e) in children(&info.signed_attrs, 0, info.signed_attrs.len())? {
+            if t != 0x30 { continue; }
+            let k = children(&info.signed_attrs, s, e)?;
+            if k.len() != 2 { continue; }
+            let (t1, s1, e1) = k[0];
+            if t1 == 0x06 && info.signed_attrs[s1..e1] == *OID_CONTENT_TYPE {
+                let (t2, s2, _e2) = k[1];
+                if t2 != 0x31 { return Err(anyhow!("content-type: SET expected")); }
+                let (t3, s3, e3) = tlv(&info.signed_attrs, s2)?;
+                if t3 != 0x06 { return Err(anyhow!("content-type value: OID expected")); }
+                if &info.signed_attrs[s3..e3] != info.content_type_oid.as_slice() {
+                    return Err(anyhow!("content-type attr MISMATCH vs eContentType"));
+                }
+                ct_ok = true;
+            }
+            if t1 == 0x06 && info.signed_attrs[s1..e1] == *OID_MESSAGE_DIGEST {
+                let (t2, s2, _e2) = k[1];
+                if t2 != 0x31 { return Err(anyhow!("messageDigest: SET expected")); }
+                let (t3, s3, e3) = tlv(&info.signed_attrs, s2)?;
+                if t3 != 0x04 { return Err(anyhow!("messageDigest: OCTET STRING expected")); }
+                if &info.signed_attrs[s3..e3] != content_digest {
+                    return Err(anyhow!("messageDigest MISMATCH — attrs do not bind this content"));
+                }
+                md_ok = true;
+            }
+        }
+        if !ct_ok { return Err(anyhow!("content-type attribute missing in signedAttrs")); }
+        if !md_ok { return Err(anyhow!("messageDigest attribute missing in signedAttrs")); }
+        Ok(())
+    }
+
+    /// [C4d] verify — profile-strict: signedAttrs required, with-RSA sig OID
+    /// matching digestAlgorithm, attrs bound to content, SPKI-aware cert walk.
     pub fn verify_ds_signature(info: &SodInfo) -> Result<()> {
         use rsa::pkcs1v15::{Signature, VerifyingKey};
         use rsa::signature::Verifier;
@@ -997,12 +1070,32 @@ mod sod {
 
         if info.ds_cert_der.is_empty() { return Err(anyhow!("no DS certificate in SOD")); }
         if info.signer_info_sig.is_empty() { return Err(anyhow!("no SignerInfo signature in SOD")); }
-        if info.digest_oid.is_empty() || info.sig_oid.is_empty() {
-            return Err(anyhow!("missing AlgorithmIdentifier fields (profile-invalid SOD)"));
+        // ICAO profile: eContent type != id-data ⇒ signedAttrs REQUIRED
+        if !info.has_signed_attrs {
+            return Err(anyhow!("signedAttrs REQUIRED for ICAO SOD profile (RFC 5652 §5.4)"));
         }
-        if info.sig_oid != OID_RSA_ENCRYPTION {
-            return Err(anyhow!("unsupported signatureAlgorithm (ECDSA → C4c, fail-closed)"));
+
+        let content_digest: Vec<u8> = match info.digest_oid.as_slice() {
+            x if x == OID_SHA224 => Sha224::digest(&info.sod_body).to_vec(),
+            x if x == OID_SHA256 => Sha256::digest(&info.sod_body).to_vec(),
+            x if x == OID_SHA384 => Sha384::digest(&info.sod_body).to_vec(),
+            x if x == OID_SHA512 => Sha512::digest(&info.sod_body).to_vec(),
+            other => return Err(anyhow!("unsupported digestAlgorithm {other:?}")),
+        };
+        // signatureAlgorithm must be hash-with-RSA matching the digest (fail-closed;
+        // rsaEncryption alone is NOT a CMS signature algorithm)
+        let pair_ok =
+            (info.digest_oid.as_slice() == OID_SHA224 && info.sig_oid.as_slice() == OID_SHA224_WITH_RSA) ||
+            (info.digest_oid.as_slice() == OID_SHA256 && info.sig_oid.as_slice() == OID_SHA256_WITH_RSA) ||
+            (info.digest_oid.as_slice() == OID_SHA384 && info.sig_oid.as_slice() == OID_SHA384_WITH_RSA) ||
+            (info.digest_oid.as_slice() == OID_SHA512 && info.sig_oid.as_slice() == OID_SHA512_WITH_RSA);
+        if !pair_ok {
+            return Err(anyhow!(
+                "digestAlgorithm/signatureAlgorithm pair not allowed: {:?}/{:?}",
+                info.digest_oid, info.sig_oid
+            ));
         }
+        signed_attrs_check(info, &content_digest)?;
 
         let sig = Signature::try_from(info.signer_info_sig.as_slice())
             .map_err(|e| anyhow!("signature decode: {e}"))?;
@@ -1010,10 +1103,11 @@ mod sod {
 
         macro_rules! run {
             ($h:ty) => {{
-                let content_digest = <$h as Digest>::digest(&info.sod_body);
-                let msg = signed_msg(info, content_digest.as_slice())?;
+                let mut m = vec![0x31];
+                m.extend(blen(info.signed_attrs.len()));
+                m.extend_from_slice(&info.signed_attrs);
                 let vk = VerifyingKey::<$h>::new(key.clone());
-                vk.verify(&msg, &sig).map_err(|e| anyhow!("DS signature invalid: {e}"))
+                vk.verify(&m, &sig).map_err(|e| anyhow!("DS signature invalid: {e}"))
             }};
         }
         match info.digest_oid.as_slice() {
@@ -1025,57 +1119,15 @@ mod sod {
         }
     }
 
-    fn extract_spki_key(info: &SodInfo) -> Result<rsa::RsaPublicKey> {
-        use rsa::RsaPublicKey;
-        use rsa::pkcs8::DecodePublicKey;
-        let (t, s, _e) = tlv(&info.ds_cert_der, 0)?;
-        if t != 0x30 { return Err(anyhow!("cert: SEQUENCE expected")); }
-        let (t, ts, te) = tlv(&info.ds_cert_der, s)?;
-        if t != 0x30 { return Err(anyhow!("cert: TBSCertificate expected")); }
-        // [C4b-fix] SPKI = LAST field of TBSCertificate (true for v1 & v3).
-        // Walk children, keep full TLV of the last one (header included).
-        let mut cur = ts;
-        let mut last_start = ts;
-        while cur < te {
-            let (_tag, _vs, ve) = tlv(&info.ds_cert_der, cur)?;
-            last_start = cur;          // start of this child's TLV
-            cur = ve;
+    /// [C4c] lightweight signature↔cert presence contract (full Sid matching → C4c-full)
+    pub fn sid_matches_cert(info: &SodInfo) -> Result<()> {
+        if info.signer_info_sig.is_empty() && !info.ds_cert_der.is_empty() {
+            return Err(anyhow!("certificate present but no signature — profile-invalid"));
         }
-        if last_start >= te { return Err(anyhow!("cert: TBS too short")); }
-        let (t, _vs, _ve) = tlv(&info.ds_cert_der, last_start)?;
-        if t != 0x30 { return Err(anyhow!("cert: SPKI expected")); }
-        RsaPublicKey::from_public_key_der(&info.ds_cert_der[last_start..te])
-            .map_err(|e| anyhow!("SPKI parse: {e}"))
-    }
-
-    // msg for VerifyingKey: raw content (no-attrs) or 0x31-wrapped attrs (attrs path).
-    // Enforces RFC 5652 §5.4: messageDigest attr MUST equal Hash(eContent).
-    fn signed_msg(info: &SodInfo, content_digest: &[u8]) -> Result<Vec<u8>> {
-        if !info.has_signed_attrs {
-            return Ok(info.sod_body.clone());
+        if !info.signer_info_sig.is_empty() && info.ds_cert_der.is_empty() {
+            return Err(anyhow!("signature present but no certificate — cannot attribute"));
         }
-        let mut md_ok = false;
-        for (t, s, e) in children(&info.signed_attrs, 0, info.signed_attrs.len())? {
-            if t != 0x30 { continue; }
-            let k = children(&info.signed_attrs, s, e)?;
-            if k.len() != 2 { continue; }
-            let (t1, s1, e1) = k[0];
-            if t1 == 0x06 && &info.signed_attrs[s1..e1] == OID_MESSAGE_DIGEST {
-                md_ok = true;
-                let (t2, s2, _e2) = k[1];
-                if t2 != 0x31 { return Err(anyhow!("messageDigest: SET expected")); }
-                let (t3, s3, e3) = tlv(&info.signed_attrs, s2)?;
-                if t3 != 0x04 { return Err(anyhow!("messageDigest: OCTET STRING expected")); }
-                if info.signed_attrs[s3..e3] != *content_digest {
-                    return Err(anyhow!("messageDigest MISMATCH — signedAttrs do not bind this content"));
-                }
-            }
-        }
-        if !md_ok { return Err(anyhow!("messageDigest attribute missing")); }
-        let mut m = vec![0x31];
-        m.extend(blen(info.signed_attrs.len()));
-        m.extend_from_slice(&info.signed_attrs);
-        Ok(m)
+        Ok(())
     }
 
     // ── DER builders ─────────────────────────────────────────────────────────
@@ -1097,8 +1149,17 @@ mod sod {
         btlv(0x02, &v)
     }
     fn boct(v: &[u8]) -> Vec<u8> { btlv(0x04, v) }
+    fn battrs(lds_oid: &[u8], md: &[u8]) -> Vec<u8> {
+        flatten(vec![
+            bseq(vec![btlv(0x06, OID_CONTENT_TYPE), bset(vec![btlv(0x06, lds_oid)])]),
+            bseq(vec![btlv(0x06, OID_MESSAGE_DIGEST), bset(vec![boct(md)])]),
+        ])
+    }
 
+    /// Simulated passport SOD — profile-shaped (attrs, sha256WithRSA),
+    /// signature = zero placeholder (SIMULATED tier detection).
     pub fn build_simulated_sod(dg1_sha256: &[u8]) -> Vec<u8> {
+        use sha2::{Digest, Sha256};
         let lso = bseq(vec![
             bint(0),
             bseq(vec![btlv(0x06, OID_SHA256)]),
@@ -1112,7 +1173,8 @@ mod sod {
             bint(1),
             bseq(vec![bint(1)]),
             bseq(vec![btlv(0x06, OID_SHA256)]),
-            bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]),
+            btlv(0xA0, &battrs(OID_LDS_SECURITY_OBJECT, &Sha256::digest(&lso))),
+            bseq(vec![btlv(0x06, OID_SHA256_WITH_RSA)]),
             boct(&vec![0u8; 256]),
         ]);
         let signed_data = bseq(vec![
@@ -1124,33 +1186,18 @@ mod sod {
         bseq(vec![btlv(0x06, OID_SIGNED_DATA), btlv(0xA0, &signed_data)])
     }
 
-
-    /// [C4c] Basic SignerIdentifier ↔ certificate matching:
-    /// sid = issuerAndSerialNumber SEQUENCE { issuer Name, serial INTEGER }.
-    /// Lightweight check: cert serial must equal sid's serial (issuer Name
-    /// full-compare C4c-full/x509-parser backlog). Fail-closed if unmatchable.
-    pub fn sid_matches_cert(info: &SodInfo) -> Result<()> {
-        // SignerInfo re-walk: sid is child[1]
-        // (parser already stored what we need? No — sid raw nahi rakha. Is liye
-        //  yahan lightweight contract: cert TBS serial extract kerke compare
-        //  kerna possible nahi bina sid raw ke — so we ENFORCE presence of a
-        //  cert when signature exists (first-cert heuristic ka minimum hardening)
-        if info.signer_info_sig.is_empty() && !info.ds_cert_der.is_empty() {
-            return Err(anyhow!("certificate present but no signature — profile-invalid"));
-        }
-        if !info.signer_info_sig.is_empty() && info.ds_cert_der.is_empty() {
-            return Err(anyhow!("signature present but no certificate — cannot attribute"));
-        }
-        Ok(())
-    }
-
-    // ── [C4b-test] deterministic real-crypto fixtures (SigningKey API) ───────
+    // ── [C4d-test] fixtures (SigningKey API; omit_attrs ⇒ must FAIL) ─────────
     #[cfg(test)]
     pub fn build_test_cert(spki_der: &[u8], key: &rsa::RsaPrivateKey) -> Result<Vec<u8>> {
         use rsa::pkcs1v15::SigningKey;
         use rsa::signature::{SignatureEncoding, Signer};
         use sha2::Sha256;
         let alg = bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]);
+        // [C4d] extension AFTER SPKI — proves indexed walk (SPKI ≠ last field)
+        let exts = btlv(0xA3, &bseq(vec![bseq(vec![
+            btlv(0x06, &[0x55, 0x1D, 0x13]), // 2.5.29.19 basicConstraints
+            boct(&bseq(vec![])),
+        ])]));
         let tbs = bseq(vec![
             btlv(0xA0, &bint(2)),
             bint(1),
@@ -1159,6 +1206,7 @@ mod sod {
             bseq(vec![btlv(0x17, b"250101000000Z"), btlv(0x17, b"350101000000Z")]),
             bseq(vec![]),
             spki_der.to_vec(),
+            exts,
         ]);
         let sig = SigningKey::<Sha256>::new(key.clone()).sign(&tbs).to_vec();
         let mut bits = vec![0u8];
@@ -1192,25 +1240,22 @@ mod sod {
             bseq(vec![btlv(0x06, OID_SHA256)]),
         ];
         if with_signed_attrs {
-            let content_digest = Sha256::digest(&lso);
-            let attrs = flatten(vec![
-                bseq(vec![btlv(0x06, OID_MESSAGE_DIGEST), bset(vec![boct(&content_digest)])]),
-            ]);
+            let attrs = battrs(OID_LDS_SECURITY_OBJECT, &Sha256::digest(&lso));
             let set_der = btlv(0x31, &attrs);
             let sig = signing.sign(&set_der).to_vec();
             signer.push(btlv(0xA0, &attrs));
-            signer.push(bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]));
+            signer.push(bseq(vec![btlv(0x06, OID_SHA256_WITH_RSA)]));
             signer.push(boct(&sig));
         } else {
             let sig = signing.sign(&lso).to_vec();
-            signer.push(bseq(vec![btlv(0x06, OID_RSA_ENCRYPTION)]));
+            signer.push(bseq(vec![btlv(0x06, OID_SHA256_WITH_RSA)]));
             signer.push(boct(&sig));
         }
         let signed_data = bseq(vec![
             bint(1),
             bset(vec![bseq(vec![btlv(0x06, OID_SHA256)])]),
             econtent,
-            btlv(0xA0, cert_der),   // certificates [0] IMPLICIT CertificateSet (RFC 5652)
+            btlv(0xA0, cert_der),
             bset(vec![bseq(signer)]),
         ]);
         Ok(bseq(vec![btlv(0x06, OID_SIGNED_DATA), btlv(0xA0, &signed_data)]))
@@ -1388,7 +1433,8 @@ mod c1_tests {
     }
 
     #[test]
-    fn positive_real_signature_no_attrs_verified() {
+    fn no_attrs_profile_rejected() {
+        // [C4d] RFC 5652 §5.4: signedAttrs REQUIRED (eContent type != id-data)
         use rsa::pkcs8::EncodePublicKey;
         let mut rng = rand::thread_rng();
         let key = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
@@ -1398,8 +1444,30 @@ mod c1_tests {
         let sod_der = sod::build_signed_sod(&dg1, &cert, &key, false).unwrap();
         let info = sod::parse_sod(&sod_der).unwrap();
         assert!(!info.has_signed_attrs);
-        sod::verify_ds_signature(&info).expect("no-attrs path must VERIFY");
+        assert!(sod::verify_ds_signature(&info).is_err(),
+            "no-attrs SOD must FAIL — ICAO profile requires signedAttrs");
     }
+
+    #[test]
+    fn content_type_attr_tamper_rejected() {
+        // [C4d] contentType attr MUST equal eContentType — flip one OID byte
+        use rsa::pkcs8::EncodePublicKey;
+        let mut rng = rand::thread_rng();
+        let key = rsa::RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let spki = key.to_public_key().to_public_key_der().unwrap().as_bytes().to_vec();
+        let cert = sod::build_test_cert(&spki, &key).unwrap();
+        let dg1 = sha256_hash(b"P<CTTYPE<<CHECK<<<<<<<<<<<<<<<<<<<<<<Y2222229GBR7001013M");
+        let sod_der = sod::build_signed_sod(&dg1, &cert, &key, true).unwrap();
+        let mut info = sod::parse_sod(&sod_der).unwrap();
+        let pos = info.signed_attrs.windows(6)
+            .position(|w| w == [0x67u8, 0x81, 0x08, 0x01, 0x01, 0x01])
+            .expect("LDS OID not found in signedAttrs");
+        info.signed_attrs[pos] ^= 0x01;
+        assert!(sod::verify_ds_signature(&info).is_err(),
+            "content-type mismatch MUST be rejected");
+    }
+
+
 
     #[test]
     fn message_digest_tamper_rejected() {
@@ -1449,4 +1517,20 @@ mod c1_tests {
         assert_eq!(res.trust_level, "VERIFIED_ONLY");
         assert!(res.success);
     }
+
+    #[test]
+    fn independent_external_fixture_verifies() {
+        // [C4d] Externally-generated SOD: CMS hand-encoded in Python with an
+        // independently DER-encoded ICAO OID set, real cryptography-lib X.509
+        // cert with extensions, RSA signature over 0x31-SET signedAttrs,
+        // eContent [0] EXPLICIT, sha256WithRSAEncryption signature algorithm.
+        const FIXTURE_SOD_HEX: &str = "3082051c06092a864886f70d010702a082050d30820509020101310f300d0609608648016503040201050030490606678108010101a03f043d303b020100300d06096086480165030402010500302730250201010420d387e268decaa8225cfc040a1da1122beabef860ab6cd024e80b55befc55346ca08202f3308202ef308201d7a003020102021464514008a154f4b500949cb243b826e5fba04832300d06092a864886f70d01010b050030223120301e06035504030c175a4b5020496e646570656e64656e742054657374204453301e170d3235303130313030303030305a170d3335303130313030303030305a30223120301e06035504030c175a4b5020496e646570656e64656e74205465737420445330820122300d06092a864886f70d01010105000382010f003082010a0282010100ade0b439dfb31bdbac99504869e6a6acfd4ea4fe18b68fdf82529eaa1939d9506c70755ac80199cae91e567dee979850f3db2781f72f227305fdef0b18ea1bb464d42c758db7cd89ca9ea05a4e71d286fb3307c9adb83f3490927f6f78f58f133305be6f634cb97b85dc2aa5fc480537809374761648056705176824b9e57ff3f665b0c46fbe7985be949bbcdeaeaa48f3112af2b01419af9728437b32074268504b161531007bfa9d19801f2ac34a88bb9278057ba9b73e817b10e5c0fc470f8100ee1eaf0cdbb2e2b1bf74db68ab0823c19582331ad053cc30b2fcde37dfde616ba9d756278759301c0ecb63a6acf4e60fbb22909120c3966b30d11291f05f0203010001a31d301b30090603551d1304023000300e0603551d0f0101ff040403020780300d06092a864886f70d01010b05000382010100486e4486264339e0403ce624ec4ac0ad0cd2274f150dde3bc57ba9cde81936e8138ad61425d47ab6a1285a4a8c3b8d6469fbfbabc36f71d0c4aa89d1c2b60084a8d39efd0f0b792bd6b3ff3d90290e7978ed5410f436554b60cbedaf31930c8a4c444d8dc8ccb91c27150a9600c53182fa6d7b58ac43be2df1610b743650edbfc0ae1bfd92e1f5c518c3070689d33fd3f299718df0b8f09636ce9b60a437a25c9411b1833fa4b3ac1acb8494068e0d09661806ed1bc41d7ff43766fd2ff4e72948fc91e4da71d3af1b44370015324826397e777d79336a235071ab75bcaef25262876a696800a369bfab52618e8ed536398bd59e1cfade81a76bcc36911e142c318201af308201ab020101303a30223120301e06035504030c175a4b5020496e646570656e64656e742054657374204453021464514008a154f4b500949cb243b826e5fba04832300d06096086480165030402010500a048301506092a864886f70d01090331080606678108010101302f06092a864886f70d0109043122042019a200f2e84a88b7d40b49ef8591ef1745db5296d6c95f596e510e896a8cb2ab300d06092a864886f70d01010b0500048201005f13dbea4cf518bcba635f38e5ad10e565bf271325ffede5b4b0e92fdec9a8034666d9b9f1ecafc1a3091f3627bf7427502517b8f7d2c1cc75d31e8124593666f16e409bb08fedf76a7b7ce8c86e80cca9b494b3bb34e4a8501debdd66b7ba1c4c3bf52a4ac1f97897d77a46e366d3136de1cfbbac436309ca9b899ad3aee7f4e7c7c107e3a6ec35183d5c262ed5e685da2af3e2c865968adb0499cdc53a6c4bd84bd3d8a43bc3b975b76f61cbc5357358185dccab92b3bb2b527ea55c088ea5c03746cbf33581f32a09dd5eb34e06e3e7c873f7a45b6b1ae71f775766768a860f223737493e3f26c908e06f75da0c44dfbe9c86696a402f41ad372cdcb4c537";
+        const FIXTURE_DG1: &[u8] = b"P<PAKARSALAN<<KHAN<<<<<<<<<<<<<<<<<<<<<<<<<<AB1234567PAK9001011M2501010<<<<<<<<<<<<4";
+        let sod_der = hex::decode(FIXTURE_SOD_HEX).unwrap();
+        let info = sod::parse_sod(&sod_der).expect("external fixture parses");
+        assert!(info.has_signed_attrs);
+        assert_eq!(info.dg_hash(1), Some(sha256_hash(FIXTURE_DG1).as_slice()));
+        sod::verify_ds_signature(&info).expect("external fixture must VERIFY");
+    }
+
 }
